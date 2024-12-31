@@ -1,10 +1,11 @@
 import React, { useRef } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { Autocomplete, HTMLUIProps, Select } from '@yamada-ui/react'
+import { Select } from '@mantine/core'
 import { useAddDispatch, useAppSelector } from '../store/_store'
 import { Sound, updateSoundList, updateTargetVersion } from '../store/fetchSlice'
 import { VersionInfoType, compareReleaseVersionInfo, compareSnapshotVersionInfo, comparePreReleaseVersionInfo, compareReleaseCandidateVersionInfo, parseVersion } from '../types/VersionInfo'
 import { useTranslation } from 'react-i18next'
+import { LuBox } from 'react-icons/lu'
 
 const { myAPI } = window
 
@@ -52,36 +53,43 @@ export const VersionSelector = () => {
     f()
 
     return [
-      { label: t('release_version'), items: major_versions.map(v => ({ label: v, value: v })) },
-      { label: t('snapshot_version'), items: [...rc_versions, ...pre_versions, ...snapshot_versions].map(v => ({ label: v, value: v })) },
+      { group: t('release_version'), items: major_versions.map(v => ({ label: v, value: v })) },
+      { group: t('snapshot_version'), items: [...rc_versions, ...pre_versions, ...snapshot_versions].map(v => ({ label: v, value: v })) },
     ]
   }, [dispatch, t, targetVersion, versions])
 
-  const onChangeVersion = async (version: string) => {
+  const onChangeVersion = (value: string | null) => {
+    const version = value ? value : ''
+
     setSelectedVersion(version)
+    if (!versions.find(v => v.raw == version)) return
     dispatch(updateTargetVersion({ version: versions.find(v => v.raw == version) }))
 
-    const sounds: Sound[] = await myAPI.get_mcSounds(version)
-    // console.log(oggs)
-    dispatch(updateSoundList({ sounds }))
+    const f = async (target: string) => {
+      try {
+        const sounds: Sound[] = await myAPI.get_mcSounds(target)
+        dispatch(updateSoundList({ sounds }))
+      }
+      catch (e: unknown) { alert(e) }
+    }
   }
 
   return (
     <>
       <Select
         placeholder={t('version_select')}
-        placeholderInOptions={false}
+        searchable
         // emptyMessage={t('version_not_found')}
         // closeOnSelect={false}
         variant="filled"
-        items={versionList}
+        data={versionList}
+        size="sm"
         onChange={onChangeVersion}
-        maxW="xs"
-        animation="top"
+        height={41}
+        style={{ maxWidth: 'sm' }}
         value={SelectedVersion}
-        gutter={0}
-        listProps={{ padding: 0, margin: 0 }}
-      // contentProps={{ h: "lg" }}
+        comboboxProps={{ transitionProps: { transition: 'scale-y', duration: 200 } }}
+        leftSection={<LuBox />}
       />
     </>
   )

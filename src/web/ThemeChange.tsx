@@ -1,42 +1,76 @@
-import React from 'react'
-import { useColorMode, Menu, MenuButton, MenuList, MenuItem, IconButton, Box } from '@yamada-ui/react'
-
-import { MoonIcon, PaletteIcon, SunIcon, MonitorCogIcon } from '@yamada-ui/lucide'
+import React, { useEffect } from 'react'
+import { useMantineColorScheme, Menu, ThemeIcon } from '@mantine/core'
+import { LuMoon, LuPalette, LuSun, LuMonitorCog } from 'react-icons/lu'
+import { useThemeDetector } from './hooks/useThemeDetectpr'
+import { useAddDispatch, useAppSelector } from '../store/_store'
+import { updateTheme } from '../store/fetchSlice'
 
 export const ThemeChange = () => {
-  const { changeColorMode, internalColorMode } = useColorMode()
+  const dispatch = useAddDispatch()
 
-  const isSystemColor = (internalColorMode == 'system') ? 'primary' : ''
-  const isLightColor = (internalColorMode == 'light') ? 'primary' : ''
-  const isDarkColor = (internalColorMode == 'dark') ? 'primary' : ''
+  const isSystemDarkTheme = useThemeDetector()
+
+  const { setColorScheme } = useMantineColorScheme()
+  const theme = useAppSelector(state => state.fetch.theme)
+
+  const isSystemColor = (theme == 'system') ? 'primary' : ''
+  const isLightColor = (theme == 'light') ? 'primary' : ''
+  const isDarkColor = (theme == 'dark') ? 'primary' : ''
+
+  useEffect(() => {
+    if (theme == 'system') setColorScheme(isSystemDarkTheme ? 'dark' : 'light')
+  }, [isSystemDarkTheme, setColorScheme, theme])
+
+  const changeColorMode = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const target_theme = e.currentTarget.value
+    dispatch(updateTheme({ theme: target_theme }))
+
+    if (target_theme === 'system') {
+      setColorScheme(isSystemDarkTheme ? 'dark' : 'light')
+    }
+    else {
+      setColorScheme(target_theme === 'light' ? 'light' : 'dark')
+    }
+  }
 
   return (
-    <Menu animation="top" gutter={0}>
-      <MenuButton as={IconButton} icon={<PaletteIcon fontSize="lg" />} variant="outline" />
 
-      <MenuList style={{ padding: 0, margin: 0 }}>
-        <MenuItem
-          icon={<MonitorCogIcon color={isSystemColor} fontSize="lg" />}
-          textColor={isSystemColor}
-          onClick={() => changeColorMode('system')}
+    <Menu trigger="hover">
+
+      <Menu.Target>
+        <ThemeIcon variant="outline" size="lg">
+          <LuPalette />
+        </ThemeIcon>
+      </Menu.Target>
+
+      <Menu.Dropdown>
+        <Menu.Item
+          leftSection={<LuMonitorCog color={isSystemColor} />}
+          color={isSystemColor}
+          onClick={changeColorMode}
+          value="system"
         >
-          <Box paddingBottom={0.5}>System</Box>
-        </MenuItem>
-        <MenuItem
-          icon={<SunIcon color={isLightColor} fontSize="lg" />}
-          textColor={isLightColor}
-          onClick={() => changeColorMode('light')}
+          System
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<LuSun color={isLightColor} />}
+          color={isLightColor}
+          onClick={changeColorMode}
+          value="light"
         >
-          <Box paddingBottom={0.5}>Light</Box>
-        </MenuItem>
-        <MenuItem
-          icon={<MoonIcon color={isDarkColor} fontSize="lg" />}
-          textColor={isDarkColor}
-          onClick={() => changeColorMode('dark')}
+          Light
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<LuMoon color={isDarkColor} />}
+          color={isDarkColor}
+          onClick={changeColorMode}
+          value="dark"
         >
-          <Box paddingBottom={0.5}>Dark</Box>
-        </MenuItem>
-      </MenuList>
+          Dark
+        </Menu.Item>
+      </Menu.Dropdown>
+
     </Menu>
+
   )
 }

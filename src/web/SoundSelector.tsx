@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAddDispatch, useAppSelector } from '../store/_store'
-import { Box, Flex, Input, InputGroup, InputLeftElement, Spacer, Toggle, useBoolean } from '@yamada-ui/react'
-import { FilterIcon, FilterXIcon, SearchIcon } from '@yamada-ui/lucide'
+import { ActionIcon, Box, Container, Flex, Group, Input, Space } from '@mantine/core'
+import { LuFilter, LuFilterX, LuSearch } from 'react-icons/lu'
 import { useVirtualScroll } from './hooks/useVirtualScroll'
 import { RatingStars } from './RatingStars'
 import { updateSelectedSound, updateSoundRating } from '../store/fetchSlice'
 import { useWindowSize } from './hooks/useWindowSize'
 import { useTranslation } from 'react-i18next'
+import { useDisclosure } from '@mantine/hooks'
 
 export const SoundSelector = () => {
   const dispatch = useAddDispatch()
@@ -19,7 +20,7 @@ export const SoundSelector = () => {
 
   const [txtFilters, setTxtFilters] = useState<string[]>([])
   const [ratingFilter, setRatingFilter] = useState(0)
-  const [ratingFilterSwitch, { toggle: toggleRatingFilter }] = useBoolean(false)
+  const [ratingFilterSwitch, { toggle: toggleRatingFilter }] = useDisclosure(false)
 
   const filteredSounds = Sounds.filter(value => txtFilters.every(filter => value.id.includes(filter))).filter((value) => {
     const rate = soundRatings[value.id] ?? 0
@@ -66,11 +67,14 @@ export const SoundSelector = () => {
       key={item.id}
       style={{ height: itemHeight, display: 'flex', justifyContent: 'left', alignItems: 'center' }}
     >
-      <Box
+      {item.id}
+      <RatingStars rating={soundRatings[item.id] ?? 0} onChange={rate => onChangeRating(item.id, rate)} />
+      {/*
+      <Container
         onClick={onSelectSound}
         id={item.id}
         w="full"
-        maxH={itemHeight}
+        mah={itemHeight}
         style={{ transition: '0.25s all' }}
         _hover={{ background: ['blackAlpha.200', 'whiteAlpha.200'] }}
         bg=""
@@ -83,39 +87,35 @@ export const SoundSelector = () => {
           paddingY={2}
         >
           {item.id}
-          <Spacer />
+          <Space />
           <Box alignContent="center">
             <RatingStars rating={soundRatings[item.id] ?? 0} onChange={rate => onChangeRating(item.id, rate)} />
           </Box>
         </Flex>
-      </Box>
+      </Container> */}
     </li>
   ))
 
   return (
     <>
-      <Flex w="full">
-        <InputGroup>
-          <InputLeftElement>
-            <SearchIcon color="gray.500" fontSize="lg" />
-          </InputLeftElement>
+      <Flex>
+        <Input onChange={onChangeSearchWord} placeholder={t('search_sound_id')} leftSection={<LuSearch size={16} />} />
 
-          <Input placeholder={t('search_sound_id')} onChange={onChangeSearchWord} />
-        </InputGroup>
+        <Space />
 
-        <Spacer />
-
-        <Flex paddingX={5} bg="">
-          <Box alignContent="center">
+        <Flex px={5} bg="">
+          <Container>
             <RatingStars rating={ratingFilter} onChange={rate => setRatingFilter(rate)} />
-          </Box>
+          </Container>
         </Flex>
         {/* <Tooltip label="お気に入りフィルター" placement="bottom" animation="top"> */}
-        <Toggle variant="outline" colorScheme="primary" icon={ratingFilterSwitch ? <FilterIcon fontSize="lg" /> : <FilterXIcon fontSize="lg" />} onClick={toggleRatingFilter} />
+        <ActionIcon variant={ratingFilterSwitch ? 'filled' : 'outline'} color="blue" onClick={toggleRatingFilter}>
+          {ratingFilterSwitch ? <LuFilter /> : <LuFilterX />}
+        </ActionIcon>
         {/* </Tooltip> */}
       </Flex>
 
-      <Box marginTop={2} border="1px solid" borderColor="inherit" borderRadius={5} h={listBoxHeightCSS}>
+      <Group mt={7} style={{ border: '1px solid', borderColor: 'gray', borderRadius: 5 }} h={listBoxHeightCSS}>
         <div
           onScroll={handleScroll}
           ref={scrollRef}
@@ -127,7 +127,7 @@ export const SoundSelector = () => {
             </ul>
           </div>
         </div>
-      </Box>
+      </Group>
     </>
   )
 }

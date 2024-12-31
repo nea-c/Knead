@@ -1,5 +1,5 @@
 import { GoStarFill } from 'react-icons/go'
-import { Flex, useColorModeValue } from '@yamada-ui/react'
+import { Flex, useComputedColorScheme } from '@mantine/core'
 import React, { JSX, useCallback } from 'react'
 
 type RatingStarsProps = {
@@ -15,14 +15,16 @@ export const RatingStars = ({ rating, onChange, disabled }: RatingStarsProps): J
   const onClick4 = useCallback(() => rating !== 4 ? onChange(4) : onChange(0), [rating, onChange])
   const onClick5 = useCallback(() => rating !== 5 ? onChange(5) : onChange(0), [rating, onChange])
 
-  const activeStarColorDisabled = useColorModeValue('var(--ui-colors-amber-100)', 'var(--ui-colors-amber-900)')
-  const inactiveStarColorDisabled = useColorModeValue('var(--ui-colors-blackAlpha-100)', 'var(--ui-colors-whiteAlpha-100)')
-  const activeStarColorEnabled = useColorModeValue('var(--ui-colors-amber-500)', 'var(--ui-colors-amber-400)')
-  const inactiveStarColorEnabled = useColorModeValue('var(--ui-colors-blackAlpha-300)', 'var(--ui-colors-whiteAlpha-300)')
+  const themeOf = useComputedColorScheme('light', { getInitialValueInEffect: true })
+
+  const activeStarColorDisabled = themeOf === 'light' ? 'var(--ui-colors-amber-100)' : 'var(--ui-colors-amber-900)'
+  const inactiveStarColorDisabled = themeOf === 'light' ? 'var(--ui-colors-blackAlpha-100)' : 'var(--ui-colors-whiteAlpha-100)'
+  const activeStarColorEnabled = themeOf === 'light' ? 'var(--ui-colors-amber-500)' : 'var(--ui-colors-amber-400)'
+  const inactiveStarColorEnabled = themeOf === 'light' ? 'var(--ui-colors-blackAlpha-300)' : 'var(--ui-colors-whiteAlpha-300)'
 
   if (disabled) {
     return (
-      <Flex paddingX={1} marginBottom={-2} as="button" onClick={e => e.stopPropagation()}>
+      <Flex px={1} mb={-2} component="button" onClick={e => e.stopPropagation()}>
         <div><GoStarFill size={18} fill={rating >= 1 ? activeStarColorDisabled : inactiveStarColorDisabled} /></div>
         <div><GoStarFill size={18} fill={rating >= 2 ? activeStarColorDisabled : inactiveStarColorDisabled} /></div>
         <div><GoStarFill size={18} fill={rating >= 3 ? activeStarColorDisabled : inactiveStarColorDisabled} /></div>
@@ -33,7 +35,7 @@ export const RatingStars = ({ rating, onChange, disabled }: RatingStarsProps): J
   }
 
   return (
-    <Flex paddingX={1} marginBottom={-2} as="button" onClick={e => e.stopPropagation()}>
+    <Flex px={1} mb={-2} component="button" onClick={e => e.stopPropagation()}>
       <div onClick={onClick1}><GoStarFill size={18} fill={rating >= 1 ? activeStarColorEnabled : inactiveStarColorEnabled} /></div>
       <div onClick={onClick2}><GoStarFill size={18} fill={rating >= 2 ? activeStarColorEnabled : inactiveStarColorEnabled} /></div>
       <div onClick={onClick3}><GoStarFill size={18} fill={rating >= 3 ? activeStarColorEnabled : inactiveStarColorEnabled} /></div>

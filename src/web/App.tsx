@@ -8,7 +8,8 @@ import { Configuration } from './Configuration'
 import { VolumeChange } from './VolumeChange'
 import { LanguageChange } from './LanguageChange'
 import { useAppSelector } from '../store/_store'
-import { Separator, Flex, Spacer, useColorMode, Box, VStack } from '@yamada-ui/react'
+import { Divider, Flex, Space, Container, Stack, Group, useComputedColorScheme } from '@mantine/core'
+import { useColorScheme } from '@mantine/hooks'
 
 const { myAPI } = window
 
@@ -39,15 +40,15 @@ export const App = () => {
     })()
   }, [soundRatings, targetVersion, volumeSlider])
 
-  const { colorMode } = useColorMode()
+  const themeOf = useComputedColorScheme('light', { getInitialValueInEffect: true })
 
   const style = document.createElement('style')
   style.textContent += '::-webkit-scrollbar { width: 7px; height: 7px; }'
-  if (colorMode === 'light') {
+  if (themeOf === 'light') {
     style.textContent += '::-webkit-scrollbar-track { background: var(--ui-colors-blackAlpha-200); border: none; }'
     style.textContent += '::-webkit-scrollbar-thumb { background: var(--ui-colors-blackAlpha-600); border-radius: 10px; }'
   }
-  if (colorMode === 'dark') {
+  if (themeOf === 'dark') {
     style.textContent += '::-webkit-scrollbar-track { background: var(--ui-colors-whiteAlpha-200); border: none; }'
     style.textContent += '::-webkit-scrollbar-thumb { background: var(--ui-colors-whiteAlpha-600); border-radius: 10px; }'
   }
@@ -55,23 +56,22 @@ export const App = () => {
 
   return (
     <>
-      <VStack h="100vh">
-        <Box padding={2}>
-          <Flex w="full" gap="md" paddingBottom={0}>
+      <Stack>
+        <Container p={7} w="100vw" h="100vh">
+          <Group justify="space-between">
             <VersionSelector />
-
-            <Spacer />
-
-            <VolumeChange />
-            <LanguageChange />
-            <ThemeChange />
-            {/* <Configuration /> */}
-          </Flex>
-          <Separator marginY={2} size="xs" />
+            <Group justify="flex-end" gap="xs">
+              <VolumeChange />
+              <LanguageChange />
+              <ThemeChange />
+              {/* <Configuration /> */}
+            </Group>
+          </Group>
+          <Divider my={7} size="xs" />
           <SoundSelector />
-        </Box>
+        </Container>
         <Footer />
-      </VStack>
+      </Stack>
     </>
   )
 }

@@ -1,6 +1,7 @@
-import { Box, Flex, IconButton, Input, NumberInput, Select, SelectItem, Separator, Slider, Spacer, Text, Toggle, Tooltip, useBoolean, useClipboard } from '@yamada-ui/react'
+import { Box, Flex, ActionIcon, Input, NumberInput, Select, Slider, Text, Tooltip, Container, Stack, Divider, rem, CopyButton } from '@mantine/core'
+import { useClipboard, useDisclosure } from '@mantine/hooks'
 import { FaPlay, FaPause, FaArrowRotateLeft } from 'react-icons/fa6'
-import { CheckIcon, CopyIcon, SlashIcon, MegaphoneOffIcon } from '@yamada-ui/lucide'
+import { LuCheck, LuCopy, LuSlash, LuMegaphoneOff } from 'react-icons/lu'
 import { PiTildeBold, PiCaretUpBold, PiSelectionBold } from 'react-icons/pi'
 import { useAddDispatch, useAppSelector } from '../store/_store'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -45,28 +46,28 @@ export const Footer = () => {
     { kind: 'snapshot', raw: '', year: 15, releaseNumber: 49, letter: '' },
   ] satisfies VersionInfoType[]).some(v => isAboveVersion(targetVersion, v))
 
-  const PlaySourceItems: SelectItem[] = [
-    { label: 'ambient', value: 'ambient' },
-    { label: 'block', value: 'block' },
-    { label: 'hostile', value: 'hostile' },
-    { label: 'music', value: 'music' },
-    { label: 'neutral', value: 'neutral' },
-    { label: 'player', value: 'player' },
-    { label: 'record', value: 'record' },
-    { label: 'voice', value: 'voice' },
-    { label: 'weather', value: 'weather' },
-    {
-      label: t('not_recommended'),
-      items: [
-        { label: 'master', value: 'master' },
-      ],
-    },
-  ]
+  // const PlaySourceItems: SelectItem[] = [
+  //   { label: 'ambient', value: 'ambient' },
+  //   { label: 'block', value: 'block' },
+  //   { label: 'hostile', value: 'hostile' },
+  //   { label: 'music', value: 'music' },
+  //   { label: 'neutral', value: 'neutral' },
+  //   { label: 'player', value: 'player' },
+  //   { label: 'record', value: 'record' },
+  //   { label: 'voice', value: 'voice' },
+  //   { label: 'weather', value: 'weather' },
+  //   {
+  //     label: t('not_recommended'),
+  //     items: [
+  //       { label: 'master', value: 'master' },
+  //     ],
+  //   },
+  // ]
 
-  const { onCopy, hasCopied } = useClipboard()
+  const clipboard = useClipboard()
 
   // スラッシュスイッチ
-  const [SlashSwitch, { toggle: toggleSlash }] = useBoolean(false)
+  const [SlashSwitch, { toggle: toggleSlash }] = useDisclosure(false)
 
   // サウンドを流すターゲット(masterとか)
   const [PlaySource, setPlaySource] = useState('master')
@@ -77,12 +78,12 @@ export const Footer = () => {
   // 座標指定関系
   const coordinateChars = ['~', '^']
   const [Coordinate, setCoordinate] = useState('')
-  const [CoordinateError, { on: onCoordinateError, off: offCoordinateError }] = useBoolean(false)
+  const [CoordinateError, { open: onCoordinateError, close: offCoordinateError }] = useDisclosure(false)
 
   // セレクター関系
   const [Selector, setSelector] = useState('@a')
-  const [SelectorError, { on: onSelectorError, off: offSelectorError }] = useBoolean(false)
-  const [SelectorX0, { toggle: toggleSelectorX0 }] = useBoolean(true)
+  const [SelectorError, { open: onSelectorError, close: offSelectorError }] = useDisclosure(false)
+  const [SelectorX0, { toggle: toggleSelectorX0 }] = useDisclosure(true)
 
   // ボリューム(生成)関係
   const [MaxVolume, setMaxVolume] = useState(1)
@@ -176,9 +177,9 @@ export const Footer = () => {
   return (
     <>
       <footer className="fixed_bottom">
-        <Box w="full" bg="footerBackground" padding={2} borderTop="1px solid" borderColor="inherit" style={{ userSelect: 'none' }}>
+        <Stack w="full" bg="footerBackground" p={2} style={{ borderTop: '1px solid', borderColor: 'inherit', userSelect: 'none' }}>
 
-          <Box alignContent="center" paddingX={1}>
+          {/* <Box alignContent="center" paddingX={1}>
             <Slider
               step={0.01} defaultValue={0} min={0} max={100}
               value={AudioController.contexts.head ? AudioController.contexts.head.playbackTime * 100 / AudioController.contexts.head.maxTime : 0}
@@ -188,9 +189,9 @@ export const Footer = () => {
           </Box>
 
           <Flex w="full" marginTop={2}>
-            <IconButton onClick={AudioController.commands.stop} icon={<FaArrowRotateLeft size={20} />} variant="ghost" />
+            <ActionIcon onClick={AudioController.commands.stop} icon={<FaArrowRotateLeft size={20} />} variant="ghost" />
             <Spacer maxW={1} />
-            <IconButton
+            <ActionIcon
               onClick={AudioController.context.isSomePlaying ? AudioController.commands.pause : AudioController.commands.play}
               icon={AudioController.context.isSomePlaying ? <FaPause size={20} /> : <FaPlay size={20} />}
               variant="ghost"
@@ -230,19 +231,19 @@ export const Footer = () => {
             <Spacer maxW={10} />
             <Tooltip label={t('tilde_symbol')} placement="bottom" animation="top">
               <Box border="1px solid" borderColor="inherit" borderRadius={5}>
-                <IconButton onClick={onClickTilde} icon={<PiTildeBold size={20} />} variant="ghost" />
+                <ActionIcon onClick={onClickTilde} icon={<PiTildeBold size={20} />} variant="ghost" />
               </Box>
             </Tooltip>
             <Spacer maxW={1} />
             <Tooltip label={t('caret_symbol')} placement="bottom" animation="top">
               <Box border="1px solid" borderColor="inherit" borderRadius={5}>
-                <IconButton onClick={onClickCaret} icon={<PiCaretUpBold size={20} />} variant="ghost" />
+                <ActionIcon onClick={onClickCaret} icon={<PiCaretUpBold size={20} />} variant="ghost" />
               </Box>
             </Tooltip>
             <Spacer maxW={1} />
             <Tooltip label={t('symbol_clear')} placement="bottom" animation="top">
               <Box border="1px solid" borderColor="inherit" borderRadius={5}>
-                <IconButton onClick={onClickRemoveSymbol} icon={<PiSelectionBold size={20} />} variant="ghost" />
+                <ActionIcon onClick={onClickRemoveSymbol} icon={<PiSelectionBold size={20} />} variant="ghost" />
               </Box>
             </Tooltip>
           </Flex>
@@ -253,22 +254,36 @@ export const Footer = () => {
             </Tooltip>
             <Spacer maxW={10} />
             <Tooltip label={t('this_dimension_only')} placement="bottom" animation="top" maxW="full">
-              <Toggle onClick={toggleSelectorX0} variant="outline" colorScheme="primary" defaultSelected icon={<MegaphoneOffIcon fontSize="lg" />} />
+              <Toggle onClick={toggleSelectorX0} variant="outline" colorScheme="primary" defaultSelected icon={<LuMegaphoneOff />} />
             </Tooltip>
           </Flex>
+          */}
 
-          <Box w="full" marginTop={1} border="1px solid" borderColor="bg" borderRadius={5}>
+          <Container w="full" mt={1} style={{ border: '1px solid', borderColor: 'bg', borderRadius: 5 }}>
             <Flex>
-              <Box alignContent="center" paddingX={3} style={{ userSelect: 'none' }}>{command}</Box>
-              <Spacer />
-              <Box><Separator orientation="vertical" borderColor="bg" /></Box>
-              <Tooltip label={hasCopied ? 'Copied!' : 'Copy'} placement="bottom" animation="top">
-                <IconButton icon={hasCopied ? <CheckIcon color="success" marginX={6} /> : <CopyIcon marginX={6} />} onClick={() => onCopy(command)} variant="ghost" borderLeftRadius={0} borderRightRadius={2} />
-              </Tooltip>
-            </Flex>
-          </Box>
+              <Box px={3} style={{ userSelect: 'none' }}>{command}</Box>
+              <Box><Divider orientation="vertical" /></Box>
 
-        </Box>
+              <CopyButton value={command} timeout={2000}>
+                {({ copied, copy }) => (
+                  <Tooltip label={copied ? 'Copied' : 'Copy'} withArrow position="right">
+                    <ActionIcon color={copied ? 'teal' : 'gray'} variant="subtle" onClick={copy}>
+                      {copied
+                        ? (
+                            <LuCheck style={{ width: rem(16) }} />
+                          )
+                        : (
+                            <LuCopy style={{ width: rem(16) }} />
+                          )}
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </CopyButton>
+
+            </Flex>
+          </Container>
+
+        </Stack>
       </footer>
     </>
   )

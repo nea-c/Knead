@@ -1,7 +1,7 @@
 import React from 'react'
-import { Menu, MenuButton, MenuList, MenuItem, IconButton, Box } from '@yamada-ui/react'
+import { Menu, Box, ThemeIcon } from '@mantine/core'
 
-import { CheckIcon, GlobeIcon } from '@yamada-ui/lucide'
+import { LuCheck, LuGlobe } from 'react-icons/lu'
 import { useTranslation } from 'react-i18next'
 import { useAddDispatch } from '../store/_store'
 import { updateLanguage } from '../store/fetchSlice'
@@ -16,23 +16,27 @@ export const LanguageChange = () => {
   }
 
   return (
-    <Menu animation="top" gutter={0}>
-      <MenuButton as={IconButton} icon={<GlobeIcon fontSize="lg" />} variant="outline" />
+    <Menu trigger="hover">
+      <Menu.Target>
+        <ThemeIcon variant="outline" size="lg">
+          <LuGlobe />
+        </ThemeIcon>
+      </Menu.Target>
 
-      <MenuList style={{ padding: 0, margin: 0 }}>
-        <MenuItem
-          icon={<CheckIcon opacity={i18n.language === 'en' ? 1 : 0} fontSize="lg" />}
+      <Menu.Dropdown>
+        <Menu.Item
+          leftSection={<LuCheck opacity={i18n.language === 'en' ? 1 : 0} />}
           onClick={() => onClickLang('en')}
         >
-          <Box paddingBottom={0.5}>English</Box>
-        </MenuItem>
-        <MenuItem
-          icon={<CheckIcon opacity={i18n.language === 'ja' ? 1 : 0} fontSize="lg" />}
+          English
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<LuCheck opacity={i18n.language === 'ja' ? 1 : 0} />}
           onClick={() => i18n.changeLanguage('ja')}
         >
-          <Box paddingBottom={0.5}>日本語</Box>
-        </MenuItem>
-      </MenuList>
+          日本語
+        </Menu.Item>
+      </Menu.Dropdown>
     </Menu>
   )
 }

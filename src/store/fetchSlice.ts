@@ -21,6 +21,7 @@ interface State {
   appVolume: number
   appMute: boolean
   lang: string
+  theme: string
 }
 
 const initialState: State = {
@@ -33,6 +34,7 @@ const initialState: State = {
   appVolume: 1,
   appMute: false,
   lang: 'ja',
+  theme: 'system',
 }
 
 export const fetchSlice = createSlice({
@@ -85,7 +87,14 @@ export const fetchSlice = createSlice({
       state.lang = action.payload.lang
     },
 
+    updateTheme: (
+      state,
+      action: PayloadAction<{ theme: string }>,
+    ) => {
+      state.theme = action.payload.theme
+    },
+
   },
 })
 export default fetchSlice.reducer
-export const { updateTargetVersion, updateSoundList, updateSoundRating, updateSelectedSound, updateAppVolume, updateLanguage } = fetchSlice.actions
+export const { updateTargetVersion, updateSoundList, updateSoundRating, updateSelectedSound, updateAppVolume, updateLanguage, updateTheme } = fetchSlice.actions
