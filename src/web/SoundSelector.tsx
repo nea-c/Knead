@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAddDispatch, useAppSelector } from '../store/_store'
-import { ActionIcon, Box, Container, Flex, Group, Input, Space } from '@mantine/core'
+import { ActionIcon, Box, Container, Flex, Group, Input, Space, Text } from '@mantine/core'
 import { LuFilter, LuFilterX, LuSearch } from 'react-icons/lu'
 import { useVirtualScroll } from './hooks/useVirtualScroll'
 import { RatingStars } from './RatingStars'
@@ -67,8 +67,20 @@ export const SoundSelector = () => {
       key={item.id}
       style={{ height: itemHeight, display: 'flex', justifyContent: 'left', alignItems: 'center' }}
     >
-      {item.id}
-      <RatingStars rating={soundRatings[item.id] ?? 0} onChange={rate => onChangeRating(item.id, rate)} />
+      <Group onClick={onSelectSound} w="100%" component="button" grow bg="">
+
+        <Group justify="flex-start" w="100%">
+          <Text style={{ userSelect: 'none' }}>
+            {item.id}
+          </Text>
+        </Group>
+
+        <Group justify="flex-end" w="100%">
+          <RatingStars rating={soundRatings[item.id] ?? 0} onChange={rate => onChangeRating(item.id, rate)} />
+        </Group>
+
+      </Group>
+
       {/*
       <Container
         onClick={onSelectSound}
@@ -109,7 +121,7 @@ export const SoundSelector = () => {
           </Container>
         </Flex>
         {/* <Tooltip label="お気に入りフィルター" placement="bottom" animation="top"> */}
-        <ActionIcon variant={ratingFilterSwitch ? 'filled' : 'outline'} color="blue" onClick={toggleRatingFilter}>
+        <ActionIcon variant={ratingFilterSwitch ? 'filled' : 'outline'} color="blue" onClick={toggleRatingFilter} size="lg">
           {ratingFilterSwitch ? <LuFilter /> : <LuFilterX />}
         </ActionIcon>
         {/* </Tooltip> */}

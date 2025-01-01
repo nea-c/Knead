@@ -1,4 +1,4 @@
-import { Box, Flex, ActionIcon, Input, NumberInput, Select, Slider, Text, Tooltip, Container, Stack, Divider, rem, CopyButton } from '@mantine/core'
+import { Box, Flex, ActionIcon, Input, NumberInput, Select, Slider, Text, Tooltip, Container, Stack, Divider, rem, CopyButton, Group } from '@mantine/core'
 import { useClipboard, useDisclosure } from '@mantine/hooks'
 import { FaPlay, FaPause, FaArrowRotateLeft } from 'react-icons/fa6'
 import { LuCheck, LuCopy, LuSlash, LuMegaphoneOff } from 'react-icons/lu'
@@ -144,15 +144,15 @@ export const Footer = () => {
 
     return selectedSound != ''
       ? ([
-          (SlashSwitch ? '/' : '') + 'playsound',
-          selectedSound,
-          (!isTargetVersion15w49aOrHigher ? undefined : ((isTargetVersion24w09aOrHigher && PlaySource == 'master' && CorrectedSelector == '@s' && Coordinate == '' && MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : PlaySource)),
-          ((isTargetVersion24w09aOrHigher && CorrectedSelector == '@s' && Coordinate == '' && MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : CorrectedSelector),
-          ((CorrectedCoordinate == '' && MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : (CorrectedCoordinate == '' ? '~ ~ ~' : CorrectedCoordinate)),
-          ((MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : MaxVolume),
-          ((pitch == '1' && MinVolume == 0) ? '' : pitch),
-          (MinVolume == 0 ? '' : MinVolume),
-        ].join(' '))
+        (SlashSwitch ? '/' : '') + 'playsound',
+        selectedSound,
+        (!isTargetVersion15w49aOrHigher ? undefined : ((isTargetVersion24w09aOrHigher && PlaySource == 'master' && CorrectedSelector == '@s' && Coordinate == '' && MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : PlaySource)),
+        ((isTargetVersion24w09aOrHigher && CorrectedSelector == '@s' && Coordinate == '' && MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : CorrectedSelector),
+        ((CorrectedCoordinate == '' && MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : (CorrectedCoordinate == '' ? '~ ~ ~' : CorrectedCoordinate)),
+        ((MaxVolume == 1 && pitch == '1' && MinVolume == 0) ? '' : MaxVolume),
+        ((pitch == '1' && MinVolume == 0) ? '' : pitch),
+        (MinVolume == 0 ? '' : MinVolume),
+      ].join(' '))
       : ''
   }, [Coordinate, selectedSound, SlashSwitch, isTargetVersion15w49aOrHigher, isTargetVersion24w09aOrHigher, PlaySource, Selector, MaxVolume, pitch, MinVolume, SelectorX0])
 
@@ -177,7 +177,7 @@ export const Footer = () => {
   return (
     <>
       <footer className="fixed_bottom">
-        <Stack w="full" bg="footerBackground" p={2} style={{ borderTop: '1px solid', borderColor: 'inherit', userSelect: 'none' }}>
+        <Stack w="full" bg="footerBackground" p={7} style={{ borderTop: '1px solid', borderColor: 'inherit', userSelect: 'none' }}>
 
           {/* <Box alignContent="center" paddingX={1}>
             <Slider
@@ -259,28 +259,35 @@ export const Footer = () => {
           </Flex>
           */}
 
-          <Container w="full" mt={1} style={{ border: '1px solid', borderColor: 'bg', borderRadius: 5 }}>
-            <Flex>
-              <Box px={3} style={{ userSelect: 'none' }}>{command}</Box>
-              <Box><Divider orientation="vertical" /></Box>
+          <Container w="100%" h="xl" mt={1} p={0}>
+            <Group p={0} grow>
+              <Tooltip label={t('selector')} position="top">
+                <Input onChange={onChangeSelector} error={SelectorError} defaultValue="@a" w="calc(full - xs)" placeholder={t('selector')} />
+              </Tooltip>
+            </Group>
+          </Container>
 
-              <CopyButton value={command} timeout={2000}>
-                {({ copied, copy }) => (
-                  <Tooltip label={copied ? 'Copied' : 'Copy'} withArrow position="right">
-                    <ActionIcon color={copied ? 'teal' : 'gray'} variant="subtle" onClick={copy}>
-                      {copied
-                        ? (
-                            <LuCheck style={{ width: rem(16) }} />
-                          )
-                        : (
-                            <LuCopy style={{ width: rem(16) }} />
-                          )}
-                    </ActionIcon>
-                  </Tooltip>
-                )}
-              </CopyButton>
+          <Container w="100%" h="xl" mt={1} style={{ border: '1px solid', borderColor: 'bg', borderRadius: 5 }}>
+            <Group justify="flex-start" grow w="100%">
+              <Container px={3} style={{ userSelect: 'none' }}>
+                {command}
+                {/* test */}
+              </Container>
 
-            </Flex>
+              <Group justify="flex-end">
+                <Divider orientation="vertical" />
+
+                <CopyButton value={command} timeout={2000}>
+                  {({ copied, copy }) => (
+                    <Tooltip label={copied ? 'Copied' : 'Copy'} position="top">
+                      <ActionIcon color={copied ? 'teal' : 'gray'} variant="subtle" onClick={copy} mx={7} w={20}>
+                        {copied ? (<LuCheck style={{ width: rem(16) }} />) : (<LuCopy style={{ width: rem(16) }} />)}
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </CopyButton>
+              </Group>
+            </Group>
           </Container>
 
         </Stack>

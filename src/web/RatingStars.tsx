@@ -17,14 +17,14 @@ export const RatingStars = ({ rating, onChange, disabled }: RatingStarsProps): J
 
   const themeOf = useComputedColorScheme('light', { getInitialValueInEffect: true })
 
-  const activeStarColorDisabled = themeOf === 'light' ? 'var(--ui-colors-amber-100)' : 'var(--ui-colors-amber-900)'
-  const inactiveStarColorDisabled = themeOf === 'light' ? 'var(--ui-colors-blackAlpha-100)' : 'var(--ui-colors-whiteAlpha-100)'
-  const activeStarColorEnabled = themeOf === 'light' ? 'var(--ui-colors-amber-500)' : 'var(--ui-colors-amber-400)'
-  const inactiveStarColorEnabled = themeOf === 'light' ? 'var(--ui-colors-blackAlpha-300)' : 'var(--ui-colors-whiteAlpha-300)'
+  const activeStarColorDisabled = themeOf === 'light' ? '#fde8c4' : '#4e3303'
+  const inactiveStarColorDisabled = themeOf === 'light' ? '#ececec' : '#222222'
+  const activeStarColorEnabled = themeOf === 'light' ? '#f59f0a' : '#f7b23b'
+  const inactiveStarColorEnabled = themeOf === 'light' ? '#d3d3d3' : '#3a3a3a'
 
   if (disabled) {
     return (
-      <Flex px={1} mb={-2} component="button" onClick={e => e.stopPropagation()}>
+      <Flex px={1} mt={7} component="button" style={{ backgroundColor: 'transparent', border: 'none' }} onClick={e => e.stopPropagation()}>
         <div><GoStarFill size={18} fill={rating >= 1 ? activeStarColorDisabled : inactiveStarColorDisabled} /></div>
         <div><GoStarFill size={18} fill={rating >= 2 ? activeStarColorDisabled : inactiveStarColorDisabled} /></div>
         <div><GoStarFill size={18} fill={rating >= 3 ? activeStarColorDisabled : inactiveStarColorDisabled} /></div>
@@ -35,7 +35,7 @@ export const RatingStars = ({ rating, onChange, disabled }: RatingStarsProps): J
   }
 
   return (
-    <Flex px={1} mb={-2} component="button" onClick={e => e.stopPropagation()}>
+    <Flex px={1} mt={7} component="button" style={{ backgroundColor: 'transparent', border: 'none' }} onClick={e => e.stopPropagation()}>
       <div onClick={onClick1}><GoStarFill size={18} fill={rating >= 1 ? activeStarColorEnabled : inactiveStarColorEnabled} /></div>
       <div onClick={onClick2}><GoStarFill size={18} fill={rating >= 2 ? activeStarColorEnabled : inactiveStarColorEnabled} /></div>
       <div onClick={onClick3}><GoStarFill size={18} fill={rating >= 3 ? activeStarColorEnabled : inactiveStarColorEnabled} /></div>
