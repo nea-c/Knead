@@ -83,6 +83,7 @@ export const VersionSelector = () => {
         value={SelectedVersion}
         gutter={0}
         listProps={{ padding: 0, margin: 0 }}
+        style={{ userSelect: 'none' }}
       />
     </>
   )

@@ -260,9 +260,9 @@ export const Footer = () => {
   return (
     <>
       <footer className="fixed_bottom">
-        <Box w="full" bg="footerBackground" padding={2} borderTop="1px solid" borderColor="inherit" style={{ userSelect: 'none' }}>
+        <Box w="full" bg="footerBackground" padding={2} borderTop="1px solid" borderColor="inherit">
 
-          <Box alignContent="center" paddingX={1}>
+          <Box alignContent="center" paddingX={1} style={{ userSelect: 'none' }}>
             <Slider
               value={seekbar}
               onChange={onChangeSeekbar}
@@ -276,7 +276,7 @@ export const Footer = () => {
             />
           </Box>
 
-          <Flex w="full" marginTop={2}>
+          <Flex w="full" marginTop={2} style={{ userSelect: 'none' }}>
             <IconButton onClick={() => dispatch(updateSelectedSound({ id: selectedSound }))} icon={<FaArrowRotateLeft size={20} />} variant="ghost" />
             <Spacer maxW={1} />
             <IconButton
@@ -294,7 +294,7 @@ export const Footer = () => {
             <PitchInput pitch={pitch} onChange={onChangePitch} />
           </Flex>
 
-          <Flex w="full" marginTop={1}>
+          <Flex w="full" marginTop={1} style={{ userSelect: 'none' }}>
             <Tooltip label={t('add_slash')} placement="bottom" animation="top">
               <Toggle variant="outline" colorScheme="primary" icon={<SlashIcon fontSize="xl" />} onClick={toggleSlash} />
             </Tooltip>
@@ -312,7 +312,7 @@ export const Footer = () => {
             </Tooltip>
           </Flex>
 
-          <Flex w="full" marginTop={1}>
+          <Flex w="full" marginTop={1} style={{ userSelect: 'none' }}>
             <Tooltip label={t('coordinate')} placement="bottom" animation="top">
               <Input value={Coordinate} onChange={onChangeCoordinate} invalid={CoordinateError} w="calc(full - xs)" placeholder={t('coordinate')} />
             </Tooltip>
@@ -330,7 +330,7 @@ export const Footer = () => {
             </Tooltip>
           </Flex>
 
-          <Flex w="full" marginTop={1}>
+          <Flex w="full" marginTop={1} style={{ userSelect: 'none' }}>
             <Tooltip label={t('selector')} placement="bottom" animation="top">
               <Input onChange={onChangeSelector} invalid={SelectorError} defaultValue="@a" w="calc(full - xs)" placeholder={t('selector')} />
             </Tooltip>
@@ -342,7 +342,7 @@ export const Footer = () => {
 
           <Box w="full" marginTop={1} border="1px solid" borderColor="bg" borderRadius={5}>
             <Flex>
-              <Box alignContent="center" paddingX={3} style={{ userSelect: 'none' }}>{command}</Box>
+              <Box alignContent="center" paddingX={3}>{command}</Box>
               <Spacer />
               <Box><Separator orientation="vertical" borderColor="bg" /></Box>
               <Tooltip label={hasCopied ? 'Copied!' : 'Copy'} placement="bottom" animation="bottom">
