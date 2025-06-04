@@ -1,40 +1,15 @@
 {
   "name": "knead",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Playsound generator for Minecraft",
   "main": "dist/main.js",
   "scripts": {
     "dev": "rimraf dist && run-p dev:webpack dev:electron",
     "dev:webpack": "cross-env NODE_ENV=\"development\" webpack --progress",
     "dev:electron": "wait-on ./dist/index.html ./dist/main.js && electronmon .",
-    "build": "cross-env NODE_ENV=\"production\" webpack --progress && electron-builder",
+    "build": "cross-env NODE_ENV=\"production\" webpack --progress",
     "tcm": "tcm src",
     "lint": "eslint src/** --no-error-on-unmatched-pattern --fix"
-  },
-  "build": {
-    "appId": "com.example.knead",
-    "productName": "Knead",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "package.json"
-    ],
-    "extraMetadata": {
-      "main": "dist/main.js"
-    },
-    "win": {
-      "target": "nsis"
-    }
-  },
-  "keywords": [],
-  "author": "NeAc",
-  "electronmon": {
-    "patterns": [
-      "dist/**/*",
-      "!userData/**"
-    ]
   },
   "license": "Apache-2.0",
   "devDependencies": {
