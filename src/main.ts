@@ -74,7 +74,11 @@ export const setCurrentSounds = (sounds: Sound[]) => {
 
 app.on('ready', () => {
   // 多重起動禁止
-  if (!app.requestSingleInstanceLock()) app.quit()
+  if (!app.requestSingleInstanceLock()) {
+    console.error('Another instance is already running.')
+    app.quit()
+    return
+  }
   // メインウインドウ作成
   createMainWindow()
 

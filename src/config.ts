@@ -44,7 +44,7 @@ export const defaultRatingStar: RatingStar = {}
 /**
  * 設定ファイル配置場所
  */
-const userData = path.join('userData')
+const userData = app.getPath('userData')
 const configPath = path.join(userData, 'settings.json')
 const ratingStarPath = path.join(userData, 'ratingStar.json')
 console.log(process.env.PORTABLE_EXECUTABLE_DIR)
@@ -54,6 +54,11 @@ console.log(process.env.PORTABLE_EXECUTABLE_DIR)
  */
 export const loadSettings = (): KneadSettings => {
   try {
+    //フォルダ自体が存在しないなら作成
+    if (!fs.existsSync(userData)) {
+      fs.mkdirSync(userData, { recursive: true })
+    }
+
     if (!fs.existsSync(configPath)) {
       // ファイルがなければデフォルトを書き込み
       fs.mkdirSync(userData, { recursive: true })
