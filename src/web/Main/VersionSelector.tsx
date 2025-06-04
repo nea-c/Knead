@@ -30,7 +30,6 @@ export const VersionSelector = () => {
       }
       try {
         const versions = await window.myAPI.get_versions()
-        // const versions = ["1.21", "1.21.2", "1.42.3", "1.19", "1.21.4", "Ffff-1.3.421.21", "22.31.321", "22...31.321", "1.19.3-rc3", "1.19.3-pre2", "", "1.13.1-pre2", "1.13.1-pre1", "23w44a", "12w3421a", "1.1232-foa", "a-tr-test-1.32116.325-1.21", "23w13a_or_b", "1.19.2-AAA_DSA_GA_H2", "3.28.1-aaaasd21.3.3-41.5555.3.32118-3.3.3"]
         setVersions(get_mcVersions(versions))
       }
       catch (e: unknown) {

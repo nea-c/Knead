@@ -2,10 +2,13 @@ import path from 'node:path'
 import { BrowserWindow, app, ipcMain } from 'electron'
 import { initIpcMain } from './ipc-main-handler'
 import { initAutoUpdateChecker } from './update-checker'
+import { Sound } from './store/fetchSlice'
 
 initIpcMain()
 
 let mainWindow: BrowserWindow
+let currentSounds = []
+
 const createMainWindow = () => {
   initAutoUpdateChecker()
   mainWindow = new BrowserWindow({
@@ -47,7 +50,11 @@ const createSubWindow = () => {
     opacity: 1,
     show: false,
     icon: path.join(__dirname, 'assets/icon.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+    },
   })
+
   // メニューバー削除
   subWindow.setMenu(null)
   // レンダラープロセスをロード
@@ -59,6 +66,10 @@ const createSubWindow = () => {
   })
 
   subWindow.once('closed', () => mainWindow.focus())
+}
+
+export const setCurrentSounds = (sounds: Sound[]) => {
+  currentSounds = sounds
 }
 
 app.on('ready', () => {

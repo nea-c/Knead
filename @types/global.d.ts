@@ -20,4 +20,7 @@ export interface Sandbox {
   saveRatingStar: (data: string) => Promise<void>
   saveRatingStarAsString: (data: string) => Promise<void>
   updateRatingStar: (key: string, value: number) => Promise<void>
+  getCurrentSounds: () => Promise<Sound[]>
+  setSelectedSound: (id: string) => void
+  getMainSelectedSound: () => Promise<string>
 }

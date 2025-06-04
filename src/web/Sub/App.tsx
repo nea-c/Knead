@@ -1,30 +1,50 @@
-import React from 'react'
-import { Box, VStack, Reorder, ReorderItem, ReorderTrigger, HStack, Text, IconButton } from '@yamada-ui/react'
-import { FaPlay } from 'react-icons/fa6'
+import React, { useEffect, useState } from 'react'
+import { useAddDispatch, useAppSelector } from '../../store/_store'
+import { updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
+import { AudioControlWindow } from './components/AudioControlWindow'
+import { VersionInfoType } from '../../types/VersionInfo'
 
 export const SubApp = () => {
-  // こいつもバーチャルスクロールで実装しなければいけなさそう？
-  const items = ['test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7', 'test8', 'test9', 'test10'].map(item => (
-    <ReorderItem value={item} key={item} padding={2}>
-      <HStack>
-        <ReorderTrigger />
-        <IconButton size="xs" icon={<FaPlay size={10} />} />
-        <Text>{item}</Text>
-      </HStack>
-    </ReorderItem>
-  ))
+  const dispatch = useAddDispatch()
+  const targetVersion = useAppSelector(s => s.fetch.targetVersion)
+  const sounds = useAppSelector(s => s.fetch.sounds)
+  const selectedSound = useAppSelector(s => s.fetch.selectedSound)
+
+  useEffect(() => {
+    ;(async () => {
+      const version = await window.myAPI.getSetting('selectedVersion')
+      if (version) dispatch(updateTargetVersion({ targetVersion: version as VersionInfoType }))
+    })()
+  }, [dispatch])
+
+  useEffect(() => {
+    if (!targetVersion) return
+    ;(async () => {
+      const list = await window.myAPI.get_mcSounds(targetVersion.raw)
+      dispatch(updateSoundList({ sounds: list }))
+    })()
+  }, [dispatch, targetVersion])
+
+  useEffect(() => {
+    ;(async () => {
+      const list = await window.myAPI.getCurrentSounds()
+      if (Array.isArray(list)) dispatch(updateSoundList({ sounds: list }))
+    })()
+  }, [dispatch])
+
+  // メインウィンドウで選択中のIDを取得
+  const [mainSelectedId, setMainSelectedId] = useState<string>('')
+  useEffect(() => {
+    const fetchMainSelectedId = async () => {
+      const id = await window.myAPI.getMainSelectedSound()
+      setMainSelectedId(id)
+    }
+    fetchMainSelectedId()
+    const interval = setInterval(fetchMainSelectedId, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
-    <>
-      <VStack h="100vh">
-        <Box padding={2}>
-          <Box padding={2} border="1px solid" borderColor="inherit" borderRadius={5} h="calc(100vh - 30px)" overflowY="scroll">
-            <Reorder position="relative" gap={2}>
-              {items}
-            </Reorder>
-          </Box>
-        </Box>
-      </VStack>
-    </>
+    <AudioControlWindow mainSelectedId={mainSelectedId} />
   )
 }

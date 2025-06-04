@@ -26,7 +26,6 @@ export const VolumeChange = () => {
     setVolumeSlider(value)
     const appVolume = MuteSwitch ? 0 : value
     sessionStorage.setItem('appVolume', `${appVolume}`)
-    window.myAPI.updateSettings({ volume: appVolume })
   }
 
   const volumeIcon = (volume: number, mute: boolean) => {

@@ -15,4 +15,7 @@ contextBridge.exposeInMainWorld('myAPI', {
   saveRatingStar: async (data: string): Promise<void> => { await ipcRenderer.invoke('save-rating-star', data) },
   saveRatingStarAsString: async (data: string): Promise<void> => { await ipcRenderer.invoke('save-rating-star-as-string', data) },
   updateRatingStar: async (key: string, value: number): Promise<void> => { await ipcRenderer.invoke('update-rating-star', key, value) },
+  getCurrentSounds: () => ipcRenderer.invoke('getCurrentSounds'),
+  getMainSelectedSound: () => ipcRenderer.invoke('get_main_selected_sound'),
+  setSelectedSound: (id: string) => ipcRenderer.send('set_selected_sound', id),
 })

@@ -41,7 +41,7 @@ export const App = () => {
             <Spacer />
 
             <VolumeChange />
-            {/* <Button onClick={openSubWindow}>test</Button> */}
+            <Button onClick={openSubWindow}>test</Button>
             <Configuration />
           </Flex>
           <Separator marginY={2} size="xs" />

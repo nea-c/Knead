@@ -136,8 +136,13 @@ export const useAudioPlay = (): { context: GlobalContext, contexts: { head?: Pub
         // すべてのコンテキストを停止状態にリセット
         Object.entries(prev).forEach(([key, ctx]) => {
           if ('isPlaying' in ctx && ctx.isPlaying) {
-            ctx.absn.onended = null
-            ctx.absn.stop()
+            try {
+              ctx.absn.onended = null
+              ctx.absn.stop()
+            }
+            catch (e) {
+              console.error('Error stopping audio:', e)
+            }
           }
           // 再生状態に関わらず全てのサウンドを停止状態にする
           newState[key] = {
@@ -173,39 +178,25 @@ export const useAudioPlay = (): { context: GlobalContext, contexts: { head?: Pub
 
   // MARK: setSound
   const setSound = useCallback(async (soundKey: string, uri: string, speed: number = 1, volume: number = 1) => {
-    // 同期的に確実に停止する
-    const stopPromise = new Promise<void>((resolve) => {
-      setAudioState((prev) => {
-        // 再生中のすべてのサウンドを停止
-        const newState = { ...prev }
-        Object.entries(prev).forEach(([key, ctx]) => {
-          if ('isPlaying' in ctx && ctx.isPlaying) {
-            ctx.absn.onended = null
-            ctx.absn.stop()
-            newState[key] = {
-              ...ctx,
-              isPlaying: false as const,
-              playbackTime: 0,
-              playTime: 0,
-            }
-          }
-        })
-        resolve()
-        return newState
-      })
-    })
+    try {
+      // 同期的に確実に停止する
+      await stop()
 
-    await stopPromise
-    // 少し待機して AudioContext の処理を完了させる
-    await new Promise(resolve => setTimeout(resolve, 10))
+      // 少し待機して AudioContext の処理を完了させる
+      await new Promise(resolve => setTimeout(resolve, 50))
 
-    // 現在のstateを一度クリアしてから新しいサウンドを設定
-    setAudioState({})
-    await new Promise(resolve => setTimeout(resolve, 5))
+      // 現在のstateを一度クリアしてから新しいサウンドを設定
+      setAudioState({})
+      await new Promise(resolve => setTimeout(resolve, 50))
 
-    const buffer = await createAudioBuffer(uri)
-    setAudioState({ [soundKey]: createContext({ buffer, maxTime: buffer.duration, volume, speed }) })
-  }, [createAudioBuffer, createContext])
+      const buffer = await createAudioBuffer(uri)
+      setAudioState({ [soundKey]: createContext({ buffer, maxTime: buffer.duration, volume, speed }) })
+    }
+    catch (e) {
+      console.error('Error setting sound:', e)
+      throw e
+    }
+  }, [createAudioBuffer, createContext, stop])
 
   // MARK: setSounds
   const setSounds = useCallback(async (sounds: { [k: string]: string | [uri: string, speed?: number, volume?: number] }) => {

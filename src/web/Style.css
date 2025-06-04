@@ -6,3 +6,43 @@ footer.fixed_bottom {
     /*下に固定*/
     bottom: 0;
 }
+
+/* SoundSelector 用 */
+.sound-list-container {
+  width: 100%;
+  height: calc(100vh - 388.5px);
+  overflow-y: scroll;
+}
+.sound-list-outer {
+  height: 100%;
+}
+.sound-list-ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  position: relative;
+}
+.sound-list-li {
+  height: 40px;
+  display: flex;
+  justify-content: left;
+  align-items: center;
+}
+.sound-list-box {
+  transition: 0.25s all;
+}
+.sound-list-box:hover {
+  background: var(--ui-colors-blackAlpha-200, #0002);
+}
+.sound-list-flex {
+  user-select: none;
+  transition: 0.25s all;
+}
+.sound-list-flex.selected {
+  background-color: var(--ui-colors-blackAlpha-400, #0004);
+}
+.menu-list-no-style {
+  user-select: none;
+  padding: 0;
+  margin: 0;
+}

@@ -10,6 +10,12 @@ import { useTranslation } from 'react-i18next'
 import { GoStarFill } from 'react-icons/go'
 import { SoundSort } from '../../config'
 
+declare interface Window {
+  myAPI: {
+    setSelectedSound: (id: string) => void
+  }
+}
+
 export const SoundSelector = () => {
   const dispatch = useAddDispatch()
   const { t } = useTranslation()
@@ -103,7 +109,10 @@ export const SoundSelector = () => {
 
   useWindowSize()
 
-  const containerHeight = scrollRef.current?.getBoundingClientRect().height || 0
+  const listBoxHeightCSS = 'calc(100vh - 388.5px)'
+  const initialHeight = window.innerHeight - 388.5
+
+  const containerHeight = scrollRef.current?.getBoundingClientRect().height || initialHeight
 
   const { displayingItems, handleScroll, startIndex } = useVirtualScroll({
     containerHeight,
@@ -111,7 +120,11 @@ export const SoundSelector = () => {
     items: filteredSounds,
   })
 
-  const listBoxHeightCSS = 'calc(100vh - 388.5px)'
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0
+    }
+  }, [containerHeight])
 
   const onChangeSearchWord = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTxt(e.target.value)
@@ -124,6 +137,7 @@ export const SoundSelector = () => {
     if (isSelecting) return
     setIsSelecting(true)
     dispatch(updateSelectedSound({ id: e.currentTarget.id }))
+    window.myAPI.setSelectedSound(e.currentTarget.id)
     setTimeout(() => {
       setIsSelecting(false)
     }, 250)
@@ -157,21 +171,20 @@ export const SoundSelector = () => {
   const items = displayingItems.map(item => (
     <li
       key={item.id}
-      style={{ height: itemHeight, display: 'flex', justifyContent: 'left', alignItems: 'center' }}
+      className="sound-list-li"
     >
       <Box
         onClick={onSelectSound}
         id={item.id}
         w="full"
         maxH={itemHeight}
-        style={{ transition: '0.25s all' }}
+        className="sound-list-box"
         _hover={{ background: ['blackAlpha.200', 'whiteAlpha.200'] }}
         bg=""
       >
         <Flex
           w="full"
-          style={{ userSelect: 'none', transition: '0.25s all' }}
-          backgroundColor={item.id == selectedSound ? ['blackAlpha.400', 'whiteAlpha.400'] : 'none'}
+          className={`sound-list-flex${item.id == selectedSound ? ' selected' : ''}`}
           paddingX={5}
           paddingY={2}
         >
@@ -210,7 +223,7 @@ export const SoundSelector = () => {
         <Menu animation="top" gutter={0}>
           <MenuButton as={IconButton} icon={<ArrowDownAZIcon fontSize="xl" />} variant="outline" borderColor="inherit" />
 
-          <MenuList style={{ userSelect: 'none', padding: 0, margin: 0 }}>
+          <MenuList className="menu-list-no-style">
             <MenuOptionGroup label={t('id_sort')} type="radio" value={SoundsSort?.id} onChange={value => changeSoundSorts({ id: value })}>
               <MenuOptionItem value="ascending">{t('ascending')}</MenuOptionItem>
               <MenuOptionItem value="descending">{t('descending')}</MenuOptionItem>
@@ -234,7 +247,7 @@ export const SoundSelector = () => {
             colorScheme="primary"
           />
 
-          <MenuList style={{ userSelect: 'none', padding: 0, margin: 0 }}>
+          <MenuList className="menu-list-no-style">
             <MenuGroup label={t('rating_filter')}>
               <MenuItem onClick={() => clearRatingFilters()} icon={<XIcon fontSize="lg" />}>{t('clear_filter')}</MenuItem>
               <MenuItem onClick={() => allOnRatingFilters()} icon={<SquareCheckBigIcon fontSize="lg" />}>{t('all_on_filter')}</MenuItem>
@@ -261,10 +274,10 @@ export const SoundSelector = () => {
         <div
           onScroll={handleScroll}
           ref={scrollRef}
-          style={{ width: '100%', height: listBoxHeightCSS, overflowY: 'scroll' }}
+          className="sound-list-container"
         >
-          <div style={{ height: (filteredSounds.length * itemHeight) + 2 }}>
-            <ul style={{ margin: 0, padding: 0, listStyle: 'none', position: 'relative', top: startIndex * itemHeight }}>
+          <div className="sound-list-outer" style={{ height: (filteredSounds.length * itemHeight) + 2 }}>
+            <ul className="sound-list-ul" style={{ top: startIndex * itemHeight }}>
               {items}
             </ul>
           </div>

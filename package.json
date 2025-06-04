@@ -1,15 +1,32 @@
 {
   "name": "knead",
-  "version": "0.3.5",
+  "version": "0.3.4",
   "description": "Playsound generator for Minecraft",
   "main": "dist/main.js",
   "scripts": {
     "dev": "rimraf dist && run-p dev:webpack dev:electron",
     "dev:webpack": "cross-env NODE_ENV=\"development\" webpack --progress",
     "dev:electron": "wait-on ./dist/index.html ./dist/main.js && electronmon .",
-    "build": "cross-env NODE_ENV=\"production\" webpack --progress",
+    "build": "cross-env NODE_ENV=\"production\" webpack --progress && electron-builder",
     "tcm": "tcm src",
     "lint": "eslint src/** --no-error-on-unmatched-pattern --fix"
+  },
+  "build": {
+    "appId": "com.example.knead",
+    "productName": "Knead",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist/main.js"
+    },
+    "win": {
+      "target": "nsis"
+    }
   },
   "keywords": [],
   "author": "NeAc",
@@ -28,10 +45,11 @@
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "@types/react-window": "^1.8.8",
     "@types/webaudioapi": "^0.0.27",
     "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
-    "electron": "^33.2.1",
+    "electron": "^33.4.10",
     "electron-builder": "^25.1.8",
     "electronmon": "^2.0.3",
     "eslint": "^9.17.0",
@@ -61,6 +79,9 @@
     "i18next": "^24.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-i18next": "^15.4.0"
+    "react-i18next": "^15.4.0",
+    "react-select": "^5.10.1",
+    "react-window": "^1.8.11",
+    "uuid": "^11.1.0"
   }
 }

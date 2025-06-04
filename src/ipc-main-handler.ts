@@ -44,6 +44,8 @@ const getHashBySoundName = (hashMap: { [key: string]: { hash: string } }, soundN
     ?? ''
 }
 
+let mainSelectedSoundId = ''
+
 export const initIpcMain = (): void => {
   ipcMain.handle('get_versions', async () => {
     const folders = fs.readdirSync(path.join(...getMinecraftDir(), 'versions')).filter((e) => {
@@ -148,5 +150,17 @@ export const initIpcMain = (): void => {
   // データを保存
   ipcMain.handle('save-rating-star-as-string', (_, data: string) => {
     saveRatingStarAsString(data)
+  })
+
+  ipcMain.handle('getCurrentSounds', async () => {
+    return ((globalThis as typeof globalThis & { currentSounds?: import('./store/fetchSlice').Sound[] }).currentSounds) || []
+  })
+
+  ipcMain.on('set_selected_sound', (_event, id) => {
+    mainSelectedSoundId = id
+  })
+
+  ipcMain.handle('get_main_selected_sound', () => {
+    return mainSelectedSoundId
   })
 }
