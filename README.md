@@ -12,6 +12,7 @@ A desktop app that lets you easily create Minecraft `/playsound` commands
 # Supported
 ### 大感謝　　　Thank you so so so so so much
 ### [@ChenCMD](https://github.com/ChenCMD)
+### [@saluf](https://github.com/5qlufz-1536)
 
 
 # Feedback
