@@ -102,7 +102,7 @@ export const Footer = () => {
   useEffect(() => {
     (async () => {
       const playbackCategory = await window.myAPI.getSetting('playbackCategory') as string
-      setPlaySource(playbackCategory ?? 'master')
+      setPlaySource(playbackCategory ?? 'player')
     })()
   }, [])
 

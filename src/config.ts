@@ -32,7 +32,7 @@ export const defaultSettings: KneadSettings = {
   language: 'en',
   theme: 'system',
   selectedVersion: undefined,
-  playbackCategory: 'master',
+  playbackCategory: 'player',
   holdSoundsSort: false,
   holdRatingFilter: false,
   lastSoundsSort: { id: 'ascending', rating: 'none' },
