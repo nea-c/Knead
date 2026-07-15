@@ -57,9 +57,9 @@ export const TimelineTrack: React.FC<Props> = ({
   }, [])
 
   const handleTrackClick = useCallback((e: React.MouseEvent) => {
-    // マーカー内をクリックした場合は onPointerDown 側で stopPropagation されているので、
-    // ここに来るのは空白部分のクリックのみ
-    if (e.detail === 2) return // ダブルクリックは別ハンドラ
+    // マーカー click は子要素で target != currentTarget になるため無視
+    if (e.target !== e.currentTarget) return
+    if (e.detail === 2) return
     onSelect(null)
   }, [onSelect])
 
