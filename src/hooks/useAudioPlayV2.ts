@@ -12,6 +12,8 @@ export interface AudioControls {
   isFinished: boolean
   resetAndPlay: () => void
   forceReloadAndPlay: () => void
+  /** 任意のパスを即座にロードして再生する（audioPath prop を変更せず buffer だけ差し替え） */
+  loadAndPlay: (path: string) => Promise<void>
 }
 
 /**
@@ -33,8 +35,10 @@ export function useAudioPlay(
   const [isPaused, setIsPaused] = useState(false)
   const [isFinished, setIsFinished] = useState(false)
   const startTimeRef = useRef<number>(0)
-  const [currentPitch, setCurrentPitch] = useState(initialPitch)
-  const [currentVolume, setCurrentVolume] = useState(initialVolume)
+  // pitch/volume は再レンダーを引き起こさないよう ref で持つ
+  // （スライダー毎ティックで setState されると全コンポーネントが再レンダーされる）
+  const currentPitchRef = useRef(initialPitch)
+  const currentVolumeRef = useRef(initialVolume)
 
   // AudioContextの初期化
   const initAudioContext = useCallback(() => {
@@ -108,13 +112,13 @@ export function useAudioPlay(
 
     // 新しいgainNodeを作成
     gainNodeRef.current = audioContextRef.current.createGain()
-    gainNodeRef.current.gain.value = currentVolume
+    gainNodeRef.current.gain.value = currentVolumeRef.current
     gainNodeRef.current.connect(audioContextRef.current.destination)
 
     // 新しいソースを作成
     const source = audioContextRef.current.createBufferSource()
     source.buffer = audioBufferRef.current
-    source.playbackRate.value = currentPitch
+    source.playbackRate.value = currentPitchRef.current
     source.connect(gainNodeRef.current)
     sourceNodeRef.current = source
 
@@ -134,7 +138,7 @@ export function useAudioPlay(
     setIsPlaying(true)
     setIsPaused(false)
     setIsFinished(false)
-  }, [currentPitch, currentVolume, setPauseTime])
+  }, [setPauseTime])
 
   const stop = useCallback(() => {
     return new Promise<void>((resolve) => {
@@ -180,13 +184,13 @@ export function useAudioPlay(
 
     // 新しいgainNodeを作成
     gainNodeRef.current = audioContextRef.current.createGain()
-    gainNodeRef.current.gain.value = currentVolume
+    gainNodeRef.current.gain.value = currentVolumeRef.current
     gainNodeRef.current.connect(audioContextRef.current.destination)
 
     // 新しいソースを作成
     const source = audioContextRef.current.createBufferSource()
     source.buffer = audioBufferRef.current
-    source.playbackRate.value = currentPitch
+    source.playbackRate.value = currentPitchRef.current
     source.connect(gainNodeRef.current)
     sourceNodeRef.current = source
 
@@ -205,20 +209,20 @@ export function useAudioPlay(
     setIsPlaying(true)
     setIsPaused(false)
     setIsFinished(false)
-  }, [currentPitch, currentVolume, pauseTime, setPauseTime])
+  }, [pauseTime, setPauseTime])
 
   const setVolume = useCallback((v: number) => {
+    currentVolumeRef.current = v
     if (gainNodeRef.current) {
       gainNodeRef.current.gain.value = v
-      setCurrentVolume(v)
     }
   }, [])
 
   const setPitch = useCallback((p: number) => {
+    currentPitchRef.current = p
     if (sourceNodeRef.current) {
       sourceNodeRef.current.playbackRate.value = p
     }
-    setCurrentPitch(p)
   }, [])
 
   const resetAndPlay = useCallback(() => {
@@ -237,5 +241,14 @@ export function useAudioPlay(
     play()
   }, [audioPath, loadAudio, play, stop, setPauseTime])
 
-  return { play, stop, pause, resume, setVolume, setPitch, isPlaying, isPaused, isFinished, resetAndPlay, forceReloadAndPlay }
+  // 指定パスをロード完了まで待ってから再生
+  const loadAndPlay = useCallback(async (path: string) => {
+    await stop()
+    initAudioContext()
+    await loadAudio(path)
+    setPauseTime(0)
+    play()
+  }, [stop, initAudioContext, loadAudio, play, setPauseTime])
+
+  return { play, stop, pause, resume, setVolume, setPitch, isPlaying, isPaused, isFinished, resetAndPlay, forceReloadAndPlay, loadAndPlay }
 }

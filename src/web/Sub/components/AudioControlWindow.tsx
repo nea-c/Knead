@@ -21,6 +21,7 @@ interface GroupState {
   variantIndex: number
   volume: number
   pitch: number
+  delay: number
 }
 
 export const AudioControlWindow: React.FC<Props> = ({ mainSelectedId }) => {
@@ -35,6 +36,7 @@ export const AudioControlWindow: React.FC<Props> = ({ mainSelectedId }) => {
       variantIndex: -1,
       volume: 1.0,
       pitch: 1.0,
+      delay: 0,
     },
   ])
   const refs = useRef<Record<string, AudioGroupHandle>>({})
@@ -57,6 +59,7 @@ export const AudioControlWindow: React.FC<Props> = ({ mainSelectedId }) => {
           variantIndex: -1,
           volume: 0.5,
           pitch: 1.0,
+          delay: 0,
         },
       ]),
     [],
@@ -143,33 +146,42 @@ export const AudioControlWindow: React.FC<Props> = ({ mainSelectedId }) => {
     [],
   )
 
-  // onRemove, onDuplicate を安定化
-  const removeHandlers = React.useMemo(() => {
-    const handlers: Record<string, () => void> = {}
-    groups.forEach((g) => {
-      handlers[g.key] = () => handleRemoveGroup(g.key)
-    })
-    return handlers
-  }, [groups, handleRemoveGroup])
-
-  const duplicateHandlers = React.useMemo(() => {
-    const handlers: Record<string, () => void> = {}
-    groups.forEach((g) => {
-      handlers[g.key] = () => handleDuplicateGroup(g.key)
-    })
-    return handlers
-  }, [groups, handleDuplicateGroup])
-
-  // ref コールバックを安定化
-  const groupRefs = React.useMemo(() => {
-    const refMap: Record<string, (el: AudioGroupHandle | null) => void> = {}
-    groups.forEach((g) => {
-      refMap[g.key] = (el: AudioGroupHandle | null) => {
-        if (el) refs.current[g.key] = el
-        else delete refs.current[g.key]
+  // key 単位で安定した onRemove/onDuplicate/onChange/ref を返す（スライダー毎ティックの
+  // 再レンダー時にも参照が変わらないため、memo(AudioGroup) がすり抜けない）
+  type PerKeyHandlers = {
+    remove: () => void
+    duplicate: () => void
+    change: (patch: Partial<Omit<GroupState, 'key'>>) => void
+    ref: (el: AudioGroupHandle | null) => void
+  }
+  const handlersMapRef = useRef<Map<string, PerKeyHandlers>>(new Map())
+  const getHandlers = useCallback(
+    (key: string): PerKeyHandlers => {
+      const cache = handlersMapRef.current
+      let h = cache.get(key)
+      if (!h) {
+        h = {
+          remove: () => handleRemoveGroup(key),
+          duplicate: () => handleDuplicateGroup(key),
+          change: patch => handleGroupChange(key, patch),
+          ref: (el) => {
+            if (el) refs.current[key] = el
+            else delete refs.current[key]
+          },
+        }
+        cache.set(key, h)
       }
-    })
-    return refMap
+      return h
+    },
+    [handleRemoveGroup, handleDuplicateGroup, handleGroupChange],
+  )
+
+  // 消えた key のハンドラをキャッシュから掃除
+  useEffect(() => {
+    const active = new Set(groups.map(g => g.key))
+    for (const k of Array.from(handlersMapRef.current.keys())) {
+      if (!active.has(k)) handlersMapRef.current.delete(k)
+    }
   }, [groups])
 
   // Footer 用ステート更新（直接 ref.current から判定）
@@ -211,21 +223,25 @@ export const AudioControlWindow: React.FC<Props> = ({ mainSelectedId }) => {
             }}
           >
             {groups.map(
-              ({ key, soundId, variantIndex, volume, pitch }) => (
-                <ReorderItem key={key} value={key}>
-                  <AudioGroup
-                    key={key}
-                    initialSoundId={soundId}
-                    initialVariantIndex={variantIndex}
-                    initialVolume={volume}
-                    initialPitch={pitch}
-                    onRemove={removeHandlers[key]}
-                    onDuplicate={duplicateHandlers[key]}
-                    onChange={patch => handleGroupChange(key, patch)}
-                    ref={groupRefs[key]}
-                  />
-                </ReorderItem>
-              ),
+              ({ key, soundId, variantIndex, volume, pitch, delay }) => {
+                const h = getHandlers(key)
+                return (
+                  <ReorderItem key={key} value={key}>
+                    <AudioGroup
+                      key={key}
+                      initialSoundId={soundId}
+                      initialVariantIndex={variantIndex}
+                      initialVolume={volume}
+                      initialPitch={pitch}
+                      initialDelay={delay}
+                      onRemove={h.remove}
+                      onDuplicate={h.duplicate}
+                      onChange={h.change}
+                      ref={h.ref}
+                    />
+                  </ReorderItem>
+                )
+              },
             )}
           </Reorder>
         </Box>

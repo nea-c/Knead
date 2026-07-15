@@ -12,6 +12,7 @@ import {
   Box,
   Flex,
   IconButton,
+  Input,
   Select,
   Slider,
   SliderTrack,
@@ -41,6 +42,7 @@ interface Props {
   initialVariantIndex?: number
   initialVolume?: number
   initialPitch?: number
+  initialDelay?: number
   onRemove(): void
   onDuplicate?(): void
   onChange?(patch: Partial<{
@@ -48,6 +50,7 @@ interface Props {
     variantIndex: number
     volume: number
     pitch: number
+    delay: number
   }>): void
 }
 
@@ -58,6 +61,7 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
       initialVariantIndex = 0,
       initialVolume = 1.0,
       initialPitch = 1.0,
+      initialDelay = 0,
       onRemove,
       onDuplicate,
       onChange,
@@ -71,14 +75,14 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
     const [variantIndex, setVariantIndex] = useState(initialVariantIndex)
     const [volume, setVolume] = useState(initialVolume)
     const [pitch, setPitch] = useState(initialPitch)
+    const [delay, setDelay] = useState<number>(Math.trunc(initialDelay))
     const [audioSrc, setAudioSrc] = useState<string | null>(null)
     const [pauseTime, setPauseTime] = useState(0)
+    const delayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // 直前の値を保持する ref
+    // 直前の値を保持する ref（soundId/variantIndex は state 変化毎に親通知するので必要）
     const prevSelectedIdRef = useRef<string>(initialSoundId || '')
     const prevVariantRef = useRef<number>(initialVariantIndex)
-    const prevVolumeRef = useRef<number>(initialVolume)
-    const prevPitchRef = useRef<number>(initialPitch)
 
     // variantsをuseMemoで初期化
     const variants = useMemo(
@@ -104,6 +108,10 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
       setPitch(initialPitch)
     }, [initialPitch])
 
+    useEffect(() => {
+      setDelay(Math.trunc(initialDelay))
+    }, [initialDelay])
+
     // 値が変わった時だけ呼ぶ
     useEffect(() => {
       if (prevSelectedIdRef.current === selectedId) return
@@ -117,17 +125,8 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
       onChange?.({ variantIndex })
     }, [variantIndex, onChange])
 
-    useEffect(() => {
-      if (prevVolumeRef.current === volume) return
-      prevVolumeRef.current = volume
-      onChange?.({ volume })
-    }, [volume, onChange])
-
-    useEffect(() => {
-      if (prevPitchRef.current === pitch) return
-      prevPitchRef.current = pitch
-      onChange?.({ pitch })
-    }, [pitch, onChange])
+    // pitch/volume はドラッグ中に親へ通知しない（親の再レンダーが毎ティック起きる
+     // のを避けるため）。Slider の onChangeEnd で確定値のみ通知する。
 
     // variants の長さが変わったら variantIndex をリセット
     const prevVariantsLengthRef = useRef(variants.length)
@@ -155,7 +154,6 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
     }, [selectedVariant?.hash])
 
     const {
-      play,
       stop,
       pause,
       resume,
@@ -164,7 +162,27 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
       isPlaying,
       isPaused,
       isFinished,
+      loadAndPlay,
     } = useAudioPlay(audioSrc, volume, pitch, pauseTime, setPauseTime)
+
+    // 現在の選択 (variantIndex / random) から再生する共通ロジック。
+    // audioSrc がまだ null（Random 未解決 or 事前ロード未完了）でも取り直してロード後に再生する。
+    const startPlayback = useCallback(async () => {
+      if (variants.length === 0) return
+      const idx = variantIndex === -1
+        ? Math.floor(Math.random() * variants.length)
+        : variantIndex
+      const v = variants[idx]
+      if (!v?.hash) return
+      try {
+        const absPath = await window.myAPI.get_mcSoundHash(v.hash)
+        if (!absPath) return
+        await loadAndPlay('file://' + absPath)
+      }
+      catch (e) {
+        console.error('Error playing audio:', e)
+      }
+    }, [variantIndex, variants, loadAndPlay])
 
     // スライダー操作があったら hook に渡す、副作用
     useEffect(() => {
@@ -175,41 +193,35 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
       setPit(pitch)
     }, [pitch, setPit])
 
+    const clearDelayTimer = useCallback(() => {
+      if (delayTimerRef.current) {
+        clearTimeout(delayTimerRef.current)
+        delayTimerRef.current = null
+      }
+    }, [])
+
+    // アンマウント時にタイマーを破棄
+    useEffect(() => () => clearDelayTimer(), [clearDelayTimer])
+
     // 親から play/stop/pause/resume を呼べるよう useImperativeHandle
     useImperativeHandle(
       ref,
       () => ({
         play: async () => {
-          if (variantIndex === -1 && variants.length > 0) {
-            const playIndex = Math.floor(Math.random() * variants.length)
-            const playVariant = variants[playIndex]
-            if (playVariant?.hash) {
-              const absPath = await window.myAPI.get_mcSoundHash(
-                playVariant.hash,
-              )
-              setAudioSrc(absPath ? 'file://' + absPath : null)
-              setTimeout(async () => {
-                try {
-                  await play()
-                }
-                catch (e) {
-                  console.error('Error playing audio:', e)
-                }
-              }, 10)
-            }
+          clearDelayTimer()
+          const ms = Math.max(0, delay) * 50
+          if (ms > 0) {
+            await new Promise<void>((resolve) => {
+              delayTimerRef.current = setTimeout(() => {
+                delayTimerRef.current = null
+                resolve()
+              }, ms)
+            })
           }
-          else {
-            if (audioSrc) {
-              try {
-                await play()
-              }
-              catch (e) {
-                console.error('Error playing audio:', e)
-              }
-            }
-          }
+          await startPlayback()
         },
         stop: async () => {
+          clearDelayTimer()
           try {
             await stop()
           }
@@ -218,6 +230,7 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
           }
         },
         pause: async () => {
+          clearDelayTimer()
           try {
             await pause()
           }
@@ -244,16 +257,15 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
         },
       }),
       [
-        audioSrc,
-        play,
+        startPlayback,
         stop,
         pause,
         resume,
         isPlaying,
         isPaused,
         isFinished,
-        variantIndex,
-        variants,
+        delay,
+        clearDelayTimer,
       ],
     )
 
@@ -275,16 +287,11 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
       [isLoading, stop],
     )
 
-    const soundIdOptions = useMemo(
-      () => soundIdList.map(id => ({ label: id, value: id })),
-      [soundIdList],
-    )
-
     const variantOptions = useMemo(
       () => [
         { label: 'Random', value: 'random' },
-        ...variants.map((_, i) => ({
-          label: `Variant ${i + 1}`,
+        ...variants.map((v, i) => ({
+          label: v.path,
           value: String(i),
         })),
       ],
@@ -320,18 +327,17 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
               else if (isPaused) {
                 await resume()
               }
-              else if (isFinished) {
-                await stop()
-                await play()
-              }
               else {
                 await stop()
-                await play()
+                await startPlayback()
               }
             }}
             mr="3"
             disabled={
-              !loaded || isLoading || (variantIndex !== -1 && !audioSrc)
+              !loaded
+              || isLoading
+              || variants.length === 0
+              || (variantIndex !== -1 && !variants[variantIndex])
             }
           />
 
@@ -351,7 +357,6 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
           <FormControl id="variant" w="150px" mr="3">
             {typeof document !== 'undefined' && (
               <Select
-                placeholder="Variant"
                 items={variantOptions}
                 portalProps={{
                   containerRef:
@@ -406,6 +411,40 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
         </Flex>
 
         <Flex align="center">
+          {/* 再生遅延 (1/20 秒単位, int) */}
+          <Flex align="center" mr="6">
+            <Text fontSize="sm" mr="2">
+              遅延
+            </Text>
+            <Input
+              type="number"
+              step={1}
+              value={String(delay)}
+              onChange={(e) => {
+                const raw = e.target.value
+                if (raw === '' || raw === '-') {
+                  setDelay(0)
+                  onChange?.({ delay: 0 })
+                  return
+                }
+                const n = parseInt(raw, 10)
+                if (!Number.isFinite(n)) return
+                setDelay(n)
+                onChange?.({ delay: n })
+              }}
+              onKeyDown={(e) => {
+                if (e.key === '.' || e.key === 'e' || e.key === 'E') {
+                  e.preventDefault()
+                }
+              }}
+              w="70px"
+              size="sm"
+            />
+            <Text fontSize="xs" ml="1" color="gray.400">
+              /20s
+            </Text>
+          </Flex>
+
           {/* ピッチ */}
           <Flex align="center" mr="6">
             <Text fontSize="sm" mr="2">
@@ -417,6 +456,7 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
               max={2.0}
               step={0.01}
               onChange={v => setPitch(v)}
+              onChangeEnd={v => onChange?.({ pitch: v })}
               w="125px"
               trackColor="gray.200"
               filledTrackColor="gray.200"
@@ -449,6 +489,7 @@ const AudioGroupComponent = forwardRef<AudioGroupHandle, Props>(
             <Slider
               value={volume}
               onChange={v => setVolume(v)}
+              onChangeEnd={v => onChange?.({ volume: v })}
               min={0}
               max={1}
               step={0.01}
@@ -491,6 +532,7 @@ const areEqual = (prev: Props, next: Props) => {
     && prev.initialVariantIndex === next.initialVariantIndex
     && prev.initialVolume === next.initialVolume
     && prev.initialPitch === next.initialPitch
+    && prev.initialDelay === next.initialDelay
     && prev.onRemove === next.onRemove
     && prev.onDuplicate === next.onDuplicate
   )
