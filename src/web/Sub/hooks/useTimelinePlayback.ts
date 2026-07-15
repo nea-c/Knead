@@ -20,6 +20,13 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   const scheduledIdsRef = useRef<Set<string>>(new Set())  // すでにスケジュール済みマーカー id
   const activeSourcesRef = useRef<AudioBufferSourceNode[]>([])
   const rafRef = useRef<number | null>(null)
+  // 再生中に markers / lengthTicks が更新されても rAF ループから最新値を参照できるよう ref に反映
+  const markersRef = useRef(markers)
+  const lengthTicksRef = useRef(lengthTicks)
+  useEffect(() => { markersRef.current = markers }, [markers])
+  useEffect(() => { lengthTicksRef.current = lengthTicks }, [lengthTicks])
+  // 同期的な多重 play() 防止（state は非同期更新のため）
+  const playingRef = useRef(false)
 
   const scheduleMarker = useCallback((m: Marker) => {
     const buf = cache.getBuffer(m.soundId, m.variantIndex)
@@ -52,31 +59,8 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     scheduledIdsRef.current.clear()
   }, [])
 
-  const tick = useCallback(() => {
-    const ctx = cache.getAudioContext()
-    const elapsedSec = ctx.currentTime - playStartAudioTimeRef.current
-    const cur = startTickRef.current + elapsedSec / TICK_SEC
-    setCurrentTick(cur)
-
-    // 先読み: 現在時刻 + 100ms 内のマーカーを未スケジュール分だけ登録
-    const lookaheadTick = cur + 0.1 / TICK_SEC
-    for (const m of markers) {
-      if (scheduledIdsRef.current.has(m.id)) continue
-      if (m.tick < startTickRef.current) continue
-      if (m.tick > lookaheadTick) continue
-      scheduleMarker(m)
-      scheduledIdsRef.current.add(m.id)
-    }
-
-    // 末尾到達で自動停止
-    if (cur >= lengthTicks) {
-      stopInternal()
-      return
-    }
-    rafRef.current = requestAnimationFrame(tick)
-  }, [markers, lengthTicks, scheduleMarker, cache])
-
   const stopInternal = useCallback(() => {
+    playingRef.current = false
     stopAllSources()
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
@@ -85,17 +69,48 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     setIsPlaying(false)
   }, [stopAllSources])
 
+  const tick = useCallback(() => {
+    const ctx = cache.getAudioContext()
+    const elapsedSec = ctx.currentTime - playStartAudioTimeRef.current
+    const cur = startTickRef.current + elapsedSec / TICK_SEC
+    const len = lengthTicksRef.current
+
+    // 末尾到達で自動停止（表示上は末尾でクランプ）
+    if (cur >= len) {
+      setCurrentTick(len)
+      stopInternal()
+      return
+    }
+    setCurrentTick(cur)
+
+    // 先読み: 現在時刻 + 100ms 内のマーカーを未スケジュール分だけ登録
+    const lookaheadTick = cur + 0.1 / TICK_SEC
+    for (const m of markersRef.current) {
+      if (scheduledIdsRef.current.has(m.id)) continue
+      if (m.tick < startTickRef.current) continue
+      if (m.tick > lookaheadTick) continue
+      scheduleMarker(m)
+      scheduledIdsRef.current.add(m.id)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+  }, [scheduleMarker, cache, stopInternal])
+
   const play = useCallback(() => {
-    if (isPlaying) return
+    if (playingRef.current) return
+    playingRef.current = true
     const ctx = cache.getAudioContext()
     // ユーザー操作起点の resume（AudioContext は最初は suspended）
     ctx.resume().catch(() => {})
+    // 末尾に到達済みなら 0 に巻き戻してから再生
+    const startFrom = currentTick >= lengthTicksRef.current ? 0 : currentTick
     playStartAudioTimeRef.current = ctx.currentTime
-    startTickRef.current = currentTick
+    startTickRef.current = startFrom
+    setCurrentTick(startFrom)
     scheduledIdsRef.current.clear()
     setIsPlaying(true)
     rafRef.current = requestAnimationFrame(tick)
-  }, [isPlaying, cache, currentTick, tick])
+  }, [cache, currentTick, tick])
 
   const stop = useCallback(() => {
     stopInternal()
@@ -103,20 +118,20 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   }, [stopInternal])
 
   const seek = useCallback((newTick: number) => {
-    const wasPlaying = isPlaying
+    const wasPlaying = playingRef.current
+    const clamped = Math.max(0, Math.min(lengthTicksRef.current, newTick))
     stopInternal()
-    setCurrentTick(Math.max(0, Math.min(lengthTicks, newTick)))
+    setCurrentTick(clamped)
     if (wasPlaying) {
-      // stopInternal 後に再度 play する必要があるが、currentTick が state 更新なので
-      // 次レンダーで新しい tick から再開させるフラグを立てる方式ではなく、直接再開:
+      playingRef.current = true
       const ctx = cache.getAudioContext()
       playStartAudioTimeRef.current = ctx.currentTime
-      startTickRef.current = Math.max(0, Math.min(lengthTicks, newTick))
+      startTickRef.current = clamped
       scheduledIdsRef.current.clear()
       setIsPlaying(true)
       rafRef.current = requestAnimationFrame(tick)
     }
-  }, [isPlaying, stopInternal, lengthTicks, cache, tick])
+  }, [stopInternal, cache, tick])
 
   // アンマウント時掃除
   useEffect(() => {
