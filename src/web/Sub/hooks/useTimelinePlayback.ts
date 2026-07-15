@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Marker } from '../types/timeline'
 import type { useAudioBufferCache } from './useAudioBufferCache'
 
@@ -138,5 +138,8 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     return () => stopInternal()
   }, [stopInternal])
 
-  return { isPlaying, currentTick, play, stop, seek }
+  return useMemo(
+    () => ({ isPlaying, currentTick, play, stop, seek }),
+    [isPlaying, currentTick, play, stop, seek],
+  )
 }

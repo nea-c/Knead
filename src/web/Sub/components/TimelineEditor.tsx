@@ -29,10 +29,12 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   const pxPerTick = DEFAULT_PX_PER_TICK
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
-  // state 変更でダーティ化（初回マウント時は無視）
+  // state 変更でダーティ化（初回マウント時は無視、Open/Save 直後は skipDirtyRef で 1 回だけ抑止）
   const firstRenderRef = useRef(true)
+  const skipDirtyRef = useRef(false)
   useEffect(() => {
     if (firstRenderRef.current) { firstRenderRef.current = false; return }
+    if (skipDirtyRef.current) { skipDirtyRef.current = false; return }
     setDirty(true)
   }, [timeline.state])
 
@@ -80,6 +82,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
       window.alert(`読込エラー: ${parsed.error}`)
       return
     }
+    skipDirtyRef.current = true
     timeline.replaceAll(parsed.state)
     setFilePath(res.path)
     setSelectedIds(new Set())

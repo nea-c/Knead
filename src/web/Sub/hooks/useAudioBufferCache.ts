@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
 
 export function useAudioBufferCache() {
@@ -60,5 +60,8 @@ export function useAudioBufferCache() {
     }
   }, [])
 
-  return { preload, getBuffer, getAudioContext, clear }
+  return useMemo(
+    () => ({ preload, getBuffer, getAudioContext, clear }),
+    [preload, getBuffer, getAudioContext, clear],
+  )
 }
