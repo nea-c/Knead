@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
+import { Box, Flex, Button } from '@yamada-ui/react'
 import { useAddDispatch, useAppSelector } from '../../store/_store'
 import { updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
 import { AudioControlWindow } from './components/AudioControlWindow'
+import { TimelineEditor } from './components/TimelineEditor'
 import { VersionInfoType } from '../../types/VersionInfo'
 
 export const SubApp = () => {
@@ -32,7 +34,6 @@ export const SubApp = () => {
     })()
   }, [dispatch])
 
-  // メインウィンドウで選択中のIDを取得
   const [mainSelectedId, setMainSelectedId] = useState<string>('')
   useEffect(() => {
     const fetchMainSelectedId = async () => {
@@ -44,7 +45,19 @@ export const SubApp = () => {
     return () => clearInterval(interval)
   }, [])
 
+  const [mode, setMode] = useState<'group' | 'timeline'>('timeline')
+
   return (
-    <AudioControlWindow mainSelectedId={mainSelectedId} />
+    <Box display="flex" flexDir="column" h="100vh">
+      <Flex bg="gray.900" p="1" gap="1" borderBottom="1px solid" borderColor="gray.700">
+        <Button size="xs" colorScheme={mode === 'timeline' ? 'blue' : 'gray'} onClick={() => setMode('timeline')}>タイムライン</Button>
+        <Button size="xs" colorScheme={mode === 'group' ? 'blue' : 'gray'} onClick={() => setMode('group')}>グループ (旧)</Button>
+      </Flex>
+      <Box flex="1" overflow="hidden">
+        {mode === 'timeline'
+          ? <TimelineEditor defaultSoundId={mainSelectedId} />
+          : <AudioControlWindow mainSelectedId={mainSelectedId} />}
+      </Box>
+    </Box>
   )
 }
