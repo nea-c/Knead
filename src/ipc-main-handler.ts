@@ -1,5 +1,5 @@
 import { Dict } from '@yamada-ui/react'
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { Sound } from './store/fetchSlice'
@@ -163,4 +163,35 @@ export const initIpcMain = (): void => {
   ipcMain.handle('get_main_selected_sound', () => {
     return mainSelectedSoundId
   })
+
+  ipcMain.handle(
+    'timeline:save-dialog',
+    async (event, defaultPath: string | undefined, json: string): Promise<string | null> => {
+      const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+      const result = await dialog.showSaveDialog(win!, {
+        title: 'Knead Project を保存',
+        defaultPath: defaultPath ?? 'timeline.kp',
+        filters: [{ name: 'Knead Project', extensions: ['kp'] }],
+      })
+      if (result.canceled || !result.filePath) return null
+      await fs.promises.writeFile(result.filePath, json, 'utf-8')
+      return result.filePath
+    },
+  )
+
+  ipcMain.handle(
+    'timeline:open-dialog',
+    async (event): Promise<{ path: string, json: string } | null> => {
+      const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
+      const result = await dialog.showOpenDialog(win!, {
+        title: 'Knead Project を開く',
+        properties: ['openFile'],
+        filters: [{ name: 'Knead Project', extensions: ['kp'] }],
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
+      const filePath = result.filePaths[0]
+      const json = await fs.promises.readFile(filePath, 'utf-8')
+      return { path: filePath, json }
+    },
+  )
 }
