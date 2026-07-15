@@ -18,4 +18,10 @@ contextBridge.exposeInMainWorld('myAPI', {
   getCurrentSounds: () => ipcRenderer.invoke('getCurrentSounds'),
   getMainSelectedSound: () => ipcRenderer.invoke('get_main_selected_sound'),
   setSelectedSound: (id: string) => ipcRenderer.send('set_selected_sound', id),
+  timeline: {
+    saveDialog: (defaultPath: string | undefined, json: string): Promise<string | null> =>
+      ipcRenderer.invoke('timeline:save-dialog', defaultPath, json),
+    openDialog: (): Promise<{ path: string, json: string } | null> =>
+      ipcRenderer.invoke('timeline:open-dialog'),
+  },
 })
