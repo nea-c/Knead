@@ -19,7 +19,7 @@ export function useTimeline(initial?: TimelineState) {
       setState(produce((draft) => {
         draft.markers.push({
           id,
-          tick: partial.tick,
+          tick: Math.max(0, Math.trunc(partial.tick)),
           soundId: partial.soundId ?? '',
           variantIndex: partial.variantIndex ?? -1,
           volume: partial.volume ?? 1.0,
@@ -53,6 +53,7 @@ export function useTimeline(initial?: TimelineState) {
       const m = draft.markers.find(m => m.id === id)
       if (!m) return
       Object.assign(m, patch)
+      if (patch.tick !== undefined) m.tick = Math.max(0, Math.trunc(patch.tick))
     }))
   }, [])
 
