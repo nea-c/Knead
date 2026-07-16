@@ -10,6 +10,8 @@ import { TimelineToolbar } from './TimelineToolbar'
 import { TimelineRuler } from './TimelineRuler'
 import { TimelineTrack } from './TimelineTrack'
 import { TimelinePlayhead } from './TimelinePlayhead'
+import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
+import { TimelinePropertyPanel } from './TimelinePropertyPanel'
 
 interface Props {
   defaultSoundId?: string
@@ -17,6 +19,7 @@ interface Props {
 
 export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   const timeline = useTimeline()
+  const { soundIdList, soundMap } = useAudioLibrary()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -190,8 +193,14 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     [timeline.state.markers],
   )
 
+  const singleSelectedId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null
+  const singleSelected = singleSelectedId
+    ? timeline.state.markers.find(m => m.id === singleSelectedId) ?? null
+    : null
+  const variantCount = singleSelected ? (soundMap[singleSelected.soundId]?.length ?? 0) : 0
+
   const contentWidth = tickToPx(timeline.state.lengthTicks, pxPerTick)
-  const trackAreaHeight = 24 + 64  // Ruler + Track
+  const trackAreaHeight = 24 + 64 // Ruler + Track
 
   return (
     <Box display="flex" flexDir="column" h="100vh" bg="gray.950">
@@ -237,6 +246,16 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
           />
         </Box>
       </Box>
+      <TimelinePropertyPanel
+        marker={singleSelected}
+        selectionCount={selectedIds.size}
+        lengthTicks={timeline.state.lengthTicks}
+        soundIdList={soundIdList}
+        variantCount={variantCount}
+        onChange={(patch) => {
+          if (singleSelectedId) timeline.updateMarker(singleSelectedId, patch)
+        }}
+      />
     </Box>
   )
 }
