@@ -22,6 +22,15 @@ export const AudioSelectDropdown: FC<Props> = ({
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const openDropdown = () => {
+    setInputValue(value)
+    setOpen(true)
+    requestAnimationFrame(() => {
+      inputRef.current?.select()
+    })
+  }
 
   // 外部クリックで閉じる
   useEffect(() => {
@@ -34,13 +43,15 @@ export const AudioSelectDropdown: FC<Props> = ({
     return () => window.removeEventListener('mousedown', handler)
   }, [open])
 
-  // 入力値でフィルタ
-  const filteredOptions = useMemo(
-    () => options.filter(opt =>
-      opt.toLowerCase().includes(inputValue.toLowerCase()),
-    ),
-    [options, inputValue],
-  )
+  // 入力値でフィルタ (空白区切り AND 検索)
+  const filteredOptions = useMemo(() => {
+    const tokens = inputValue.toLowerCase().split(/\s+/).filter(Boolean)
+    if (tokens.length === 0) return options
+    return options.filter((opt) => {
+      const lower = opt.toLowerCase()
+      return tokens.every(t => lower.includes(t))
+    })
+  }, [options, inputValue])
 
   const ITEM_H = 30
 
@@ -77,10 +88,15 @@ export const AudioSelectDropdown: FC<Props> = ({
   return (
     <Box position="relative" width="100%">
       <Input
+        ref={inputRef}
         value={open ? inputValue : value}
         placeholder={placeholder}
         readOnly={isDisabled}
-        onClick={() => !isDisabled && setOpen(o => !o)}
+        onClick={() => {
+          if (isDisabled) return
+          if (open) setOpen(false)
+          else openDropdown()
+        }}
         onChange={(e: ChangeEvent<HTMLInputElement>) => {
           setInputValue(e.target.value)
           if (!open) setOpen(true)

@@ -9,7 +9,7 @@ import { DEFAULT_PX_PER_TICK, tickToPx } from '../utils/tickPixel'
 import { parse, serialize } from '../utils/timelineIO'
 import { TimelineToolbar } from './TimelineToolbar'
 import { TimelineRuler } from './TimelineRuler'
-import { TimelineTrack } from './TimelineTrack'
+import { TimelineTrack, SelectModifiers } from './TimelineTrack'
 import { TimelinePlayhead } from './TimelinePlayhead'
 import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
 import { TimelinePropertyPanel } from './TimelinePropertyPanel'
@@ -18,17 +18,32 @@ interface Props {
   defaultSoundId?: string
 }
 
+interface ClipboardItem {
+  tickOffset: number
+  data: Omit<Marker, 'id' | 'tick'>
+}
+
 export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   const timeline = useTimeline()
   const { soundIdList, soundMap } = useAudioLibrary()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const anchorRef = useRef<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const clipboardRef = useRef<ClipboardItem[]>([])
   const cache = useAudioBufferCache()
+  const [subVolume, setSubVolume] = useState<number>(() => {
+    const v = parseFloat(localStorage.getItem('sub.volume') ?? '1')
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1
+  })
+  const [subMuted, setSubMuted] = useState<boolean>(() => localStorage.getItem('sub.muted') === '1')
+  useEffect(() => { localStorage.setItem('sub.volume', String(subVolume)) }, [subVolume])
+  useEffect(() => { localStorage.setItem('sub.muted', subMuted ? '1' : '0') }, [subMuted])
   const playback = useTimelinePlayback({
     markers: timeline.state.markers,
     lengthTicks: timeline.state.lengthTicks,
     cache,
+    masterVolume: subMuted ? 0 : subVolume,
   })
   const pxPerTick = DEFAULT_PX_PER_TICK
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -61,20 +76,100 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   const handleAddAtTick = useCallback((tick: number) => {
     const id = timeline.addMarker({ tick, soundId: defaultSoundId ?? '' })
     setSelectedIds(new Set([id]))
+    anchorRef.current = id
   }, [timeline, defaultSoundId])
 
   const handleAddAtPlayhead = useCallback(() => {
     handleAddAtTick(Math.round(playback.currentTick))
   }, [handleAddAtTick, playback.currentTick])
 
-  const handleSelect = useCallback((id: string | null) => {
-    setSelectedIds(id === null ? new Set() : new Set([id]))
+  const sortedMarkers = useMemo(
+    () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),
+    [timeline.state.markers],
+  )
+
+  const handleMarkerClick = useCallback((id: string, mods: SelectModifiers) => {
+    setSelectedIds((prev) => {
+      if (mods.ctrl) {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        anchorRef.current = id
+        return next
+      }
+      if (mods.shift && anchorRef.current) {
+        const anchor = anchorRef.current
+        const idxA = sortedMarkers.findIndex(m => m.id === anchor)
+        const idxB = sortedMarkers.findIndex(m => m.id === id)
+        if (idxA < 0 || idxB < 0) return new Set([id])
+        const [lo, hi] = idxA < idxB ? [idxA, idxB] : [idxB, idxA]
+        const next = new Set(prev)
+        for (let i = lo; i <= hi; i++) next.add(sortedMarkers[i].id)
+        return next
+      }
+      anchorRef.current = id
+      return new Set([id])
+    })
+  }, [sortedMarkers])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+    anchorRef.current = null
   }, [])
 
+  const handleRectangleSelect = useCallback((ids: string[], mods: SelectModifiers) => {
+    setSelectedIds((prev) => {
+      if (mods.ctrl) {
+        const next = new Set(prev)
+        for (const id of ids) next.add(id)
+        if (ids.length > 0) anchorRef.current = ids[ids.length - 1]
+        return next
+      }
+      if (ids.length > 0) anchorRef.current = ids[ids.length - 1]
+      return new Set(ids)
+    })
+  }, [])
+
+  const handleBeginMove = useCallback(() => {
+    timeline.beginTransaction()
+  }, [timeline])
+
+  const handleMoveMarkers = useCallback((deltas: Map<string, number>) => {
+    timeline.moveMarkers(deltas)
+  }, [timeline])
+
+  const handleEndMove = useCallback(() => {
+    timeline.commitTransaction()
+  }, [timeline])
+
   const handleDeleteSelected = useCallback(() => {
-    for (const id of selectedIds) timeline.removeMarker(id)
+    if (selectedIds.size === 0) return
+    timeline.removeMarkers(Array.from(selectedIds))
     setSelectedIds(new Set())
+    anchorRef.current = null
   }, [selectedIds, timeline])
+
+  const handleCopy = useCallback(() => {
+    const selected = timeline.state.markers.filter(m => selectedIds.has(m.id))
+    if (selected.length === 0) return
+    const minTick = Math.min(...selected.map(m => m.tick))
+    clipboardRef.current = selected.map(({ id: _id, tick, ...rest }) => ({
+      tickOffset: tick - minTick,
+      data: rest,
+    }))
+  }, [selectedIds, timeline.state.markers])
+
+  const handlePaste = useCallback(() => {
+    if (clipboardRef.current.length === 0) return
+    const baseTick = Math.round(playback.currentTick)
+    const additions = clipboardRef.current.map(c => ({
+      tick: baseTick + c.tickOffset,
+      ...c.data,
+    }))
+    const ids = timeline.addMarkers(additions)
+    setSelectedIds(new Set(ids))
+    anchorRef.current = ids[ids.length - 1] ?? null
+  }, [playback.currentTick, timeline])
 
   const confirmDiscardIfDirty = useCallback((): boolean => {
     if (!dirty) return true
@@ -85,7 +180,6 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     if (!confirmDiscardIfDirty()) return
     const res = await window.myAPI.timeline.openDialog()
     if (!res.ok) {
-      // canceled はユーザーが単にダイアログを閉じただけなので何もしない (C3)
       if ('canceled' in res) return
       window.alert(`読込エラー: ${res.error}`)
       return
@@ -99,6 +193,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     timeline.replaceAll(parsed.state)
     setFilePath(res.path)
     setSelectedIds(new Set())
+    anchorRef.current = null
     setDirty(false)
     if (parsed.warnings.length > 0) window.alert(`警告:\n${parsed.warnings.join('\n')}`)
   }, [timeline, confirmDiscardIfDirty])
@@ -116,51 +211,74 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   }, [timeline.state, filePath])
 
   const handleSave = useCallback(async () => {
-    // filePath があってもダイアログを出さないパスは今回未実装（メインプロセス側に別 IPC が要る）
-    // 現状は「保存」も常にダイアログを出す（Save As と同等）
     await handleSaveAs()
   }, [handleSaveAs])
 
   // キーボードショートカット
-  // playback は currentTick/isPlaying が変わるたびに再生成される（rAF フレーム毎）ため、
-  // これを useEffect の依存に含めるとリスナーが毎フレーム付け替わってしまう。
-  // 代わりに常に最新値を持つ ref を経由してハンドラ内から参照し、リスナー自体は一度だけ登録する (C1)
   const latestRef = useRef({
     selectedIds,
     markers: timeline.state.markers,
     handleDeleteSelected,
+    handleCopy,
+    handlePaste,
+    undo: timeline.undo,
+    redo: timeline.redo,
     playback,
   })
   latestRef.current = {
     selectedIds,
     markers: timeline.state.markers,
     handleDeleteSelected,
+    handleCopy,
+    handlePaste,
+    undo: timeline.undo,
+    redo: timeline.redo,
     playback,
   }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      // 入力系要素やボタン、contentEditable にフォーカスがある間はショートカットを発火させない (I4)
       if (
         target.tagName === 'INPUT'
         || target.tagName === 'TEXTAREA'
         || target.tagName === 'BUTTON'
         || target.isContentEditable
       ) return
-      const { selectedIds, markers, handleDeleteSelected, playback } = latestRef.current
+      const {
+        selectedIds, markers, handleDeleteSelected,
+        handleCopy, handlePaste, undo, redo, playback,
+      } = latestRef.current
+      const mod = e.ctrlKey || e.metaKey
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.size > 0) { e.preventDefault(); handleDeleteSelected() }
       }
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      else if (mod && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         setSelectedIds(new Set(markers.map(m => m.id)))
+        anchorRef.current = markers[markers.length - 1]?.id ?? null
+      }
+      else if (mod && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        handleCopy()
+      }
+      else if (mod && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        handlePaste()
+      }
+      else if (mod && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        undo()
+      }
+      else if ((mod && e.shiftKey && e.key.toLowerCase() === 'z') || (mod && e.key.toLowerCase() === 'y')) {
+        e.preventDefault()
+        redo()
       }
       else if (e.key === 'Escape') {
         setSelectedIds(new Set())
+        anchorRef.current = null
       }
       else if (e.key === ' ') {
         e.preventDefault()
-        // idle → play / playing → pause / paused → resume (I6)
         if (playback.isPlaying) playback.pause()
         else if (playback.isPaused) playback.resume()
         else playback.play()
@@ -174,7 +292,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 再生中はプレイヘッドが常に見えるようスクロール追従させる (M13)
+  // 再生中はプレイヘッドが常に見えるようスクロール追従
   useEffect(() => {
     if (!playback.isPlaying) return
     const el = scrollRef.current
@@ -189,22 +307,41 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     }
   }, [playback.currentTick, playback.isPlaying, pxPerTick])
 
-  const sortedMarkers = useMemo(
-    () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),
-    [timeline.state.markers],
-  )
-
   const singleSelectedId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null
   const singleSelected = singleSelectedId
     ? timeline.state.markers.find(m => m.id === singleSelectedId) ?? null
     : null
-  const variants = singleSelected ? (soundMap[singleSelected.soundId] ?? []) : []
+  const selectedMarkers = useMemo(
+    () => timeline.state.markers.filter(m => selectedIds.has(m.id)),
+    [timeline.state.markers, selectedIds],
+  )
+  const commonVariantSoundId = useMemo(() => {
+    if (selectedMarkers.length === 0) return null
+    const first = selectedMarkers[0].soundId
+    return selectedMarkers.every(m => m.soundId === first) ? first : null
+  }, [selectedMarkers])
+  const variants = commonVariantSoundId !== null ? (soundMap[commonVariantSoundId] ?? []) : []
   const handlePanelChange = useCallback((patch: Partial<Marker>) => {
-    if (singleSelectedId) timeline.updateMarker(singleSelectedId, patch)
-  }, [singleSelectedId, timeline])
+    if (selectedIds.size === 0) return
+    timeline.updateMarkers(Array.from(selectedIds), patch)
+  }, [selectedIds, timeline])
+
+  const handleShiftTick = useCallback((delta: number) => {
+    if (selectedIds.size === 0 || delta === 0) return
+    const selMarkers = timeline.state.markers.filter(m => selectedIds.has(m.id))
+    if (selMarkers.length === 0) return
+    const maxTick = Math.max(0, timeline.state.lengthTicks - 1)
+    const minCur = Math.min(...selMarkers.map(m => m.tick))
+    const maxCur = Math.max(...selMarkers.map(m => m.tick))
+    const clamped = Math.max(-minCur, Math.min(delta, maxTick - maxCur))
+    if (clamped === 0) return
+    const deltas = new Map<string, number>()
+    for (const m of selMarkers) deltas.set(m.id, m.tick + clamped)
+    timeline.moveMarkers(deltas)
+  }, [selectedIds, timeline])
 
   const contentWidth = tickToPx(timeline.state.lengthTicks, pxPerTick)
-  const trackAreaHeight = 24 + 64 // Ruler + Track
+  const trackAreaHeight = 24 + 64
 
   return (
     <Box display="flex" flexDir="column" h="100vh" bg="gray.950">
@@ -226,6 +363,14 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
         isPlaying={playback.isPlaying}
         currentTick={playback.currentTick}
         preloading={cache.preloading}
+        onUndo={timeline.undo}
+        onRedo={timeline.redo}
+        canUndo={timeline.canUndo}
+        canRedo={timeline.canRedo}
+        volume={subVolume}
+        muted={subMuted}
+        onChangeVolume={setSubVolume}
+        onToggleMute={() => setSubMuted(m => !m)}
       />
       <Box ref={scrollRef} flex="1" overflow="auto">
         <Box position="relative" w={`${contentWidth}px`}>
@@ -239,8 +384,12 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
             lengthTicks={timeline.state.lengthTicks}
             pxPerTick={pxPerTick}
             selectedIds={selectedIds}
-            onSelect={handleSelect}
-            onMoveMarker={timeline.moveMarker}
+            onMarkerClick={handleMarkerClick}
+            onClearSelection={handleClearSelection}
+            onRectangleSelect={handleRectangleSelect}
+            onBeginMove={handleBeginMove}
+            onMoveMarkers={handleMoveMarkers}
+            onEndMove={handleEndMove}
             onAddMarker={handleAddAtTick}
           />
           <TimelinePlayhead
@@ -253,10 +402,12 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
       <TimelinePropertyPanel
         marker={singleSelected}
         selectionCount={selectedIds.size}
+        selectedMarkers={selectedMarkers}
         lengthTicks={timeline.state.lengthTicks}
         soundIdList={soundIdList}
         variants={variants}
         onChange={handlePanelChange}
+        onShiftTick={handleShiftTick}
       />
     </Box>
   )

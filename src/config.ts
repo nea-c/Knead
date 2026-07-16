@@ -54,7 +54,7 @@ console.log(process.env.PORTABLE_EXECUTABLE_DIR)
  */
 export const loadSettings = (): KneadSettings => {
   try {
-    //フォルダ自体が存在しないなら作成
+    // フォルダ自体が存在しないなら作成
     if (!fs.existsSync(userData)) {
       fs.mkdirSync(userData, { recursive: true })
     }

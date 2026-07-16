@@ -5,3 +5,4 @@ release
 ..build.bat
 ..run.bat
 updater/**/*.exe
+.superpowers/

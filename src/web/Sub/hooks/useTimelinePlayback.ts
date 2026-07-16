@@ -1,55 +1,104 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Marker } from '../types/timeline'
 import type { useAudioBufferCache } from './useAudioBufferCache'
+import { sampleCurve } from '../utils/curveSampling'
 
-const TICK_SEC = 0.05  // 1 tick = 50ms
+const TICK_SEC = 0.05 // 1 tick = 50ms
 
 interface Params {
   markers: Marker[]
   lengthTicks: number
   cache: ReturnType<typeof useAudioBufferCache>
+  masterVolume: number
 }
 
-export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
+interface Firing {
+  key: string        // marker.id#i
+  soundId: string
+  variantIndex: number
+  tick: number       // absolute timeline tick
+  volume: number
+  pitch: number
+}
+
+function enumerateFirings(m: Marker): Firing[] {
+  const dur = m.duration ?? 0
+  if (dur <= 0) {
+    return [{
+      key: `${m.id}#0`,
+      soundId: m.soundId,
+      variantIndex: m.variantIndex,
+      tick: m.tick,
+      volume: m.volume,
+      pitch: m.pitch,
+    }]
+  }
+  const interval = m.retriggerInterval && m.retriggerInterval > 0 ? m.retriggerInterval : 5
+  const firings: Firing[] = []
+  for (let i = 0; i * interval <= dur; i++) {
+    const offset = i * interval
+    firings.push({
+      key: `${m.id}#${i}`,
+      soundId: m.soundId,
+      variantIndex: m.variantIndex,
+      tick: m.tick + offset,
+      volume: sampleCurve(m.volumeCurve, offset, m.volume),
+      pitch: sampleCurve(m.pitchCurve, offset, m.pitch),
+    })
+  }
+  return firings
+}
+
+export function useTimelinePlayback({ markers, lengthTicks, cache, masterVolume }: Params) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTick, setCurrentTick] = useState(0)
 
-  // 再生中に参照するミュータブル状態
-  const playStartAudioTimeRef = useRef<number>(0)  // AudioContext 上の再生開始時刻
-  const startTickRef = useRef<number>(0)            // 再生開始時の tick
-  const scheduledIdsRef = useRef<Set<string>>(new Set())  // すでにスケジュール済みマーカー id
+  const playStartAudioTimeRef = useRef<number>(0)
+  const startTickRef = useRef<number>(0)
+  const scheduledKeysRef = useRef<Set<string>>(new Set())
   const activeSourcesRef = useRef<AudioBufferSourceNode[]>([])
   const rafRef = useRef<number | null>(null)
-  // 再生中に markers / lengthTicks が更新されても rAF ループから最新値を参照できるよう ref に反映
   const markersRef = useRef(markers)
   const lengthTicksRef = useRef(lengthTicks)
   useEffect(() => { markersRef.current = markers }, [markers])
   useEffect(() => { lengthTicksRef.current = lengthTicks }, [lengthTicks])
-  // 同期的な多重 play() 防止（state は非同期更新のため）
   const playingRef = useRef(false)
-  // 一時停止中かどうか（同期判定用）
   const pausedRef = useRef(false)
   const [isPaused, setIsPaused] = useState(false)
 
-  // cache は soundMap 更新時などに identity が変わりうるため ref 経由で参照し、
-  // tick/scheduleMarker などのコールバックが不要に再生成されないようにする (M12)
   const cacheRef = useRef(cache)
   useEffect(() => { cacheRef.current = cache }, [cache])
 
-  // バッファが未ロードでスケジュールできなかった場合は false を返す。
-  // 呼び出し側は true が返った時だけ scheduledIdsRef に登録することで、
-  // 未ロードのマーカーを次フレーム以降も再試行できるようにする (C2)
-  const scheduleMarker = useCallback((m: Marker): boolean => {
-    const buf = cacheRef.current.getBuffer(m.soundId, m.variantIndex)
+  // サブウィンドウ独自のマスターボリューム。
+  // 再生中の変更を反映するため単一の GainNode を経由させる。
+  const masterGainRef = useRef<GainNode | null>(null)
+  const ensureMasterGain = useCallback((): GainNode => {
+    const ctx = cacheRef.current.getAudioContext()
+    if (!masterGainRef.current || (masterGainRef.current as unknown as { context: BaseAudioContext }).context !== ctx) {
+      const g = ctx.createGain()
+      g.gain.value = masterVolume
+      g.connect(ctx.destination)
+      masterGainRef.current = g
+    }
+    return masterGainRef.current!
+  }, [masterVolume])
+  useEffect(() => {
+    if (masterGainRef.current) {
+      masterGainRef.current.gain.value = masterVolume
+    }
+  }, [masterVolume])
+
+  const scheduleFiring = useCallback((f: Firing): boolean => {
+    const buf = cacheRef.current.getBuffer(f.soundId, f.variantIndex)
     if (!buf) return false
     const ctx = cacheRef.current.getAudioContext()
     const src = ctx.createBufferSource()
     src.buffer = buf
-    src.playbackRate.value = m.pitch
+    src.playbackRate.value = f.pitch
     const gain = ctx.createGain()
-    gain.gain.value = m.volume
-    src.connect(gain).connect(ctx.destination)
-    const when = playStartAudioTimeRef.current + (m.tick - startTickRef.current) * TICK_SEC
+    gain.gain.value = f.volume
+    src.connect(gain).connect(ensureMasterGain())
+    const when = playStartAudioTimeRef.current + (f.tick - startTickRef.current) * TICK_SEC
     const safeWhen = Math.max(when, ctx.currentTime)
     src.start(safeWhen)
     activeSourcesRef.current.push(src)
@@ -63,12 +112,12 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   const stopAllSources = useCallback(() => {
     for (const s of activeSourcesRef.current) {
       try { s.stop() }
-      catch { /* すでに停止済み */ }
+      catch { /* noop */ }
       try { s.disconnect() }
       catch { /* noop */ }
     }
     activeSourcesRef.current = []
-    scheduledIdsRef.current.clear()
+    scheduledKeysRef.current.clear()
   }, [])
 
   const stopInternal = useCallback(() => {
@@ -89,7 +138,6 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     const cur = startTickRef.current + elapsedSec / TICK_SEC
     const len = lengthTicksRef.current
 
-    // 末尾到達で自動停止（表示上は末尾でクランプ）
     if (cur >= len) {
       setCurrentTick(len)
       stopInternal()
@@ -97,33 +145,31 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     }
     setCurrentTick(cur)
 
-    // 先読み: 現在時刻 + 100ms 内のマーカーを未スケジュール分だけ登録
-    // scheduleMarker が false を返した（バッファ未ロード等）場合は登録済み扱いにせず、
-    // 次フレーム以降で再試行できるようにする
     const lookaheadTick = cur + 0.1 / TICK_SEC
     for (const m of markersRef.current) {
-      if (scheduledIdsRef.current.has(m.id)) continue
-      if (m.tick < startTickRef.current) continue
-      if (m.tick > lookaheadTick) continue
-      const started = scheduleMarker(m)
-      if (started) scheduledIdsRef.current.add(m.id)
+      const firings = enumerateFirings(m)
+      for (const f of firings) {
+        if (scheduledKeysRef.current.has(f.key)) continue
+        if (f.tick < startTickRef.current) continue
+        if (f.tick > lookaheadTick) continue
+        const started = scheduleFiring(f)
+        if (started) scheduledKeysRef.current.add(f.key)
+      }
     }
 
     rafRef.current = requestAnimationFrame(tick)
-  }, [scheduleMarker, stopInternal])
+  }, [scheduleFiring, stopInternal])
 
   const play = useCallback(() => {
     if (playingRef.current) return
     playingRef.current = true
     const ctx = cacheRef.current.getAudioContext()
-    // ユーザー操作起点の resume（AudioContext は最初は suspended）
     ctx.resume().catch(() => {})
-    // 末尾に到達済みなら 0 に巻き戻してから再生
     const startFrom = currentTick >= lengthTicksRef.current ? 0 : currentTick
     playStartAudioTimeRef.current = ctx.currentTime
     startTickRef.current = startFrom
     setCurrentTick(startFrom)
-    scheduledIdsRef.current.clear()
+    scheduledKeysRef.current.clear()
     setIsPlaying(true)
     rafRef.current = requestAnimationFrame(tick)
   }, [currentTick, tick])
@@ -133,9 +179,6 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     setCurrentTick(0)
   }, [stopInternal])
 
-  // 一時停止: AudioContext を suspend し、スケジュール済みの音源はそのまま保持する。
-  // Web Audio API の仕様上、AudioContext が suspend している間は再生中の
-  // AudioBufferSourceNode の進行も止まり、resume で続きから再生される。
   const pause = useCallback(() => {
     if (!playingRef.current || pausedRef.current) return
     pausedRef.current = true
@@ -167,17 +210,15 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     if (wasPlaying) {
       playingRef.current = true
       const ctx = cacheRef.current.getAudioContext()
-      // pause 中に AudioContext が suspend されている可能性があるため明示的に resume する
       ctx.resume().catch(() => {})
       playStartAudioTimeRef.current = ctx.currentTime
       startTickRef.current = clamped
-      scheduledIdsRef.current.clear()
+      scheduledKeysRef.current.clear()
       setIsPlaying(true)
       rafRef.current = requestAnimationFrame(tick)
     }
   }, [stopInternal, tick])
 
-  // アンマウント時掃除
   useEffect(() => {
     return () => stopInternal()
   }, [stopInternal])
