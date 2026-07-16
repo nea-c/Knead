@@ -76,7 +76,12 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   const handleOpen = useCallback(async () => {
     if (!confirmDiscardIfDirty()) return
     const res = await window.myAPI.timeline.openDialog()
-    if (!res) return
+    if (!res.ok) {
+      // canceled はユーザーが単にダイアログを閉じただけなので何もしない (C3)
+      if ('canceled' in res) return
+      window.alert(`読込エラー: ${res.error}`)
+      return
+    }
     const parsed = parse(res.json)
     if (!parsed.ok) {
       window.alert(`読込エラー: ${parsed.error}`)
@@ -92,11 +97,14 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
 
   const handleSaveAs = useCallback(async () => {
     const json = serialize(timeline.state)
-    const savedPath = await window.myAPI.timeline.saveDialog(filePath ?? 'timeline.kp', json)
-    if (savedPath) {
-      setFilePath(savedPath)
-      setDirty(false)
+    const res = await window.myAPI.timeline.saveDialog(filePath ?? 'timeline.kp', json)
+    if (!res.ok) {
+      if ('canceled' in res) return
+      window.alert(`保存エラー: ${res.error}`)
+      return
     }
+    setFilePath(res.path)
+    setDirty(false)
   }, [timeline.state, filePath])
 
   const handleSave = useCallback(async () => {
@@ -106,16 +114,32 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   }, [handleSaveAs])
 
   // キーボードショートカット
+  // playback は currentTick/isPlaying が変わるたびに再生成される（rAF フレーム毎）ため、
+  // これを useEffect の依存に含めるとリスナーが毎フレーム付け替わってしまう。
+  // 代わりに常に最新値を持つ ref を経由してハンドラ内から参照し、リスナー自体は一度だけ登録する (C1)
+  const latestRef = useRef({
+    selectedIds,
+    markers: timeline.state.markers,
+    handleDeleteSelected,
+    playback,
+  })
+  latestRef.current = {
+    selectedIds,
+    markers: timeline.state.markers,
+    handleDeleteSelected,
+    playback,
+  }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      const { selectedIds, markers, handleDeleteSelected, playback } = latestRef.current
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.size > 0) { e.preventDefault(); handleDeleteSelected() }
       }
       else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault()
-        setSelectedIds(new Set(timeline.state.markers.map(m => m.id)))
+        setSelectedIds(new Set(markers.map(m => m.id)))
       }
       else if (e.key === 'Escape') {
         setSelectedIds(new Set())
@@ -132,7 +156,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedIds, timeline.state.markers, handleDeleteSelected, playback])
+  }, [])
 
   const sortedMarkers = useMemo(
     () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),

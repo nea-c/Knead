@@ -28,9 +28,12 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   // 同期的な多重 play() 防止（state は非同期更新のため）
   const playingRef = useRef(false)
 
-  const scheduleMarker = useCallback((m: Marker) => {
+  // バッファが未ロードでスケジュールできなかった場合は false を返す。
+  // 呼び出し側は true が返った時だけ scheduledIdsRef に登録することで、
+  // 未ロードのマーカーを次フレーム以降も再試行できるようにする (C2)
+  const scheduleMarker = useCallback((m: Marker): boolean => {
     const buf = cache.getBuffer(m.soundId, m.variantIndex)
-    if (!buf) return
+    if (!buf) return false
     const ctx = cache.getAudioContext()
     const src = ctx.createBufferSource()
     src.buffer = buf
@@ -46,6 +49,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
       const idx = activeSourcesRef.current.indexOf(src)
       if (idx >= 0) activeSourcesRef.current.splice(idx, 1)
     }
+    return true
   }, [cache])
 
   const stopAllSources = useCallback(() => {
@@ -84,13 +88,15 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     setCurrentTick(cur)
 
     // 先読み: 現在時刻 + 100ms 内のマーカーを未スケジュール分だけ登録
+    // scheduleMarker が false を返した（バッファ未ロード等）場合は登録済み扱いにせず、
+    // 次フレーム以降で再試行できるようにする
     const lookaheadTick = cur + 0.1 / TICK_SEC
     for (const m of markersRef.current) {
       if (scheduledIdsRef.current.has(m.id)) continue
       if (m.tick < startTickRef.current) continue
       if (m.tick > lookaheadTick) continue
-      scheduleMarker(m)
-      scheduledIdsRef.current.add(m.id)
+      const started = scheduleMarker(m)
+      if (started) scheduledIdsRef.current.add(m.id)
     }
 
     rafRef.current = requestAnimationFrame(tick)
