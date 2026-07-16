@@ -95,7 +95,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             min={0} max={1} step={0.01}
             value={marker.volume}
             onChange={e => onChange({ volume: parseFloat(e.target.value) })}
-            style={{ width: '220px', accentColor: '#3b82f6' }}
+            style={{ width: '220px', height: '20px', accentColor: '#3b82f6', colorScheme: 'dark' }}
           />
         </Box>
 
@@ -110,7 +110,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             min={0.5} max={2.0} step={0.01}
             value={marker.pitch}
             onChange={e => onChange({ pitch: parseFloat(e.target.value) })}
-            style={{ width: '220px', accentColor: '#3b82f6' }}
+            style={{ width: '220px', height: '20px', accentColor: '#3b82f6', colorScheme: 'dark' }}
           />
         </Box>
       </Flex>
