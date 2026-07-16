@@ -2,7 +2,7 @@ import { useCallback, useMemo, useReducer } from 'react'
 import { produce, Draft } from 'immer'
 import { v4 as uuidv4 } from 'uuid'
 import type { Marker, Tick, TimelineState } from '../types/timeline'
-import { DEFAULT_TIMELINE_LENGTH_TICKS } from '../types/timeline'
+import { DEFAULT_RETRIGGER_INTERVAL, DEFAULT_TIMELINE_LENGTH_TICKS } from '../types/timeline'
 
 const MAX_HISTORY = 100
 
@@ -97,7 +97,7 @@ export function useTimeline(initial?: TimelineState) {
             volume: partial.volume ?? 1.0,
             pitch: partial.pitch ?? 1.0,
             duration: partial.duration,
-            retriggerInterval: partial.retriggerInterval,
+            retriggerInterval: partial.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL,
             volumeCurve: partial.volumeCurve,
             pitchCurve: partial.pitchCurve,
           })
@@ -122,7 +122,7 @@ export function useTimeline(initial?: TimelineState) {
             volume: p.volume ?? 1.0,
             pitch: p.pitch ?? 1.0,
             duration: p.duration,
-            retriggerInterval: p.retriggerInterval,
+            retriggerInterval: p.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL,
             volumeCurve: p.volumeCurve,
             pitchCurve: p.pitchCurve,
           })

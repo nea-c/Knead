@@ -102,26 +102,22 @@ export const CurveEditor: React.FC<Props> = ({
     onChange({ keyframes: normalized })
     return true
   }, [duration, onChange])
-  const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
-    if (!svgRef.current) return
-    const rect = svgRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    // Shift+クリックでキーフレーム追加
-    if (e.shiftKey) {
-      e.preventDefault()
-      const tick = xToTick(x)
-      if (kfs.some(kf => kf.tick === tick)) return
-      const newKf: Keyframe = {
-        tick,
-        value: yToValue(y),
-        interpolation: 'linear',
-      }
-      commitCurve([...kfs, newKf])
-      return
-    }
+  const handleBgPointerDown = useCallback(() => {
     // 通常クリックで選択解除
     setSelected(new Set())
+  }, [])
+  const handleBgDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (!svgRef.current) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const tick = xToTick(e.clientX - rect.left)
+    if (kfs.some(kf => kf.tick === tick)) return
+    e.preventDefault()
+    const newKf: Keyframe = {
+      tick,
+      value: yToValue(e.clientY - rect.top),
+      interpolation: 'linear',
+    }
+    commitCurve([...kfs, newKf])
   }, [xToTick, yToValue, kfs, commitCurve])
 
   const handleKfPointerDown = useCallback((i: number) => (e: React.PointerEvent) => {
@@ -335,6 +331,7 @@ export const CurveEditor: React.FC<Props> = ({
         style={{ background: '#111827', border: '1px solid #374151', borderRadius: 4, cursor: 'crosshair', userSelect: 'none', outline: 'none' }}
         onPointerDownCapture={() => svgRef.current?.focus()}
         onPointerDown={handleBgPointerDown}
+        onDoubleClick={handleBgDoubleClick}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
@@ -373,6 +370,7 @@ export const CurveEditor: React.FC<Props> = ({
                         cx={tickToX(kf.tick + handleL.dt)} cy={valueToY(kf.value + handleL.dv)}
                         r={4} fill="#f59e0b" cursor="grab"
                         onPointerDown={handleHandlePointerDown(i, 'L')}
+                        onDoubleClick={e => e.stopPropagation()}
                       />
                     </>
                   )}
@@ -387,6 +385,7 @@ export const CurveEditor: React.FC<Props> = ({
                         cx={tickToX(kf.tick + handleR.dt)} cy={valueToY(kf.value + handleR.dv)}
                         r={4} fill="#f59e0b" cursor="grab"
                         onPointerDown={handleHandlePointerDown(i, 'R')}
+                        onDoubleClick={e => e.stopPropagation()}
                       />
                     </>
                   )}
@@ -400,6 +399,7 @@ export const CurveEditor: React.FC<Props> = ({
                 strokeWidth={2}
                 cursor="grab"
                 onPointerDown={handleKfPointerDown(i)}
+                onDoubleClick={e => e.stopPropagation()}
                 onContextMenu={handleKfContextMenu(i)}
               />
             </g>
@@ -433,7 +433,7 @@ export const CurveEditor: React.FC<Props> = ({
         </Box>
       )}
       <Text fontSize="xs" color="gray.500" mt="1">
-        Shift+クリックで追加 / ドラッグで移動 / 右クリックで Ease / T で Linear⇔Bezier / Delete で削除
+        ダブルクリックで追加 / ドラッグで移動 / 右クリックで Ease / T で Linear⇔Bezier / Delete で削除
       </Text>
     </Box>
   )

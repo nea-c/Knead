@@ -41,15 +41,22 @@ export const TimelineMarker: React.FC<Props> = ({ marker, invalidSound, pxPerTic
         transform="translateY(-50%)"
         w={`${MARKER_SIZE}px`}
         h={`${MARKER_SIZE}px`}
-        borderRadius="full"
-        bg={invalidSound ? 'red.500' : (selected ? 'blue.400' : 'gray.300')}
-        border="2px solid"
-        borderColor={invalidSound ? 'red.200' : (selected ? 'blue.200' : 'gray.500')}
+
         cursor="grab"
         _active={{ cursor: 'grabbing' }}
         onPointerDown={onPointerDown}
         title={`t=${marker.tick} ${marker.soundId || '(no sound)'}`}
       >
+        <Box
+          position="absolute"
+          inset="0"
+          transform="rotate(45deg) scale(0.78)"
+          borderRadius="2px"
+          bg={invalidSound ? 'red.500' : (selected ? 'blue.400' : 'gray.300')}
+          border="2px solid"
+          borderColor={invalidSound ? 'red.200' : (selected ? 'blue.200' : 'gray.500')}
+          pointerEvents="none"
+        />
         {invalidSound && (
           <Text position="absolute" top="-14px" left="0" fontSize="10px" color="red.400">!</Text>
         )}

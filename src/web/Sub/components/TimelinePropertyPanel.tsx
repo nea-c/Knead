@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Box, Button, Flex, NumberInput, Select, SelectItem, Slider, Text } from '@yamada-ui/react'
-import type { Curve, Marker } from '../types/timeline'
+import { DEFAULT_RETRIGGER_INTERVAL, type Curve, type Marker } from '../types/timeline'
 import { AudioSelectDropdown } from './AudioSelectDropdown'
 import { CurveEditor } from './CurveEditor'
 
@@ -15,6 +15,8 @@ interface Props {
   onShiftTick: (delta: number) => void
   onBeginEdit: () => void
   onEndEdit: () => void
+  soundFocusRequest: number
+  onSoundFocusHandled: () => void
 }
 
 const PANEL_HEIGHT = 200
@@ -32,7 +34,7 @@ function commonValue<T>(items: Marker[], get: (m: Marker) => T): T | typeof MIXE
 
 export const TimelinePropertyPanel: React.FC<Props> = React.memo(function TimelinePropertyPanel({
   marker, selectionCount, selectedMarkers, lengthTicks, soundIdList, variants,
-  onChange, onShiftTick, onBeginEdit, onEndEdit,
+  onChange, onShiftTick, onBeginEdit, onEndEdit, soundFocusRequest, onSoundFocusHandled,
 }) {
   const [tickShift, setTickShift] = useState<number>(0)
 
@@ -54,14 +56,21 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
 
   const isMulti = selectionCount >= 2
   const maxTick = Math.max(0, lengthTicks - 1)
-  const showCurves = !isMulti && marker !== null && (marker.duration ?? 0) > 0
+  const showCurves = !isMulti && marker !== null
+  const curveKeyframes = [
+    ...(marker?.volumeCurve?.keyframes ?? []),
+    ...(marker?.pitchCurve?.keyframes ?? []),
+  ]
+  const curveDuration = marker?.duration && marker.duration > 0
+    ? marker.duration
+    : Math.max(20, ...curveKeyframes.map(keyframe => keyframe.tick))
 
   const soundIdCommon = commonValue(selectedMarkers, m => m.soundId)
   const variantCommon = commonValue(selectedMarkers, m => m.variantIndex)
   const volumeCommon = commonValue(selectedMarkers, m => m.volume)
   const pitchCommon = commonValue(selectedMarkers, m => m.pitch)
   const durationCommon = commonValue(selectedMarkers, m => m.duration ?? 0)
-  const retriggerCommon = commonValue(selectedMarkers, m => m.retriggerInterval ?? 0)
+  const retriggerCommon = commonValue(selectedMarkers, m => m.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL)
 
   const displayVal = (v: unknown) => (v === MIXED || v === null ? '' : String(v))
   const displayNum = (v: unknown, fallback: number) => (v === MIXED || v === null ? fallback : (v as number))
@@ -122,6 +131,8 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             value={displayVal(soundIdCommon)}
             placeholder={isMixed(soundIdCommon) ? '(混在)' : '(未指定)'}
             onSelect={v => onChange({ soundId: v, variantIndex: -1 })}
+            focusRequest={soundFocusRequest}
+            onFocusRequestHandled={onSoundFocusHandled}
           />
         </Box>
 
@@ -207,7 +218,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             )}
           </Text>
           <NumberInput
-            value={displayNum(retriggerCommon, 5)}
+            value={displayNum(retriggerCommon, DEFAULT_RETRIGGER_INTERVAL)}
             min={1} step={1} precision={0}
             onChange={(_str, num) => {
               if (!Number.isNaN(num)) {
@@ -224,7 +235,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
         <Flex gap="6" mt="4" wrap="wrap">
           <CurveEditor
             label="Volume カーブ"
-            duration={marker.duration ?? 0}
+            duration={curveDuration}
             valueMin={0} valueMax={Math.max(1, marker.volume)}
             fallback={marker.volume}
             curve={marker.volumeCurve}
@@ -234,7 +245,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
           />
           <CurveEditor
             label="Pitch カーブ"
-            duration={marker.duration ?? 0}
+            duration={curveDuration}
             valueMin={0.5} valueMax={2.0}
             fallback={marker.pitch}
             curve={marker.pitchCurve}

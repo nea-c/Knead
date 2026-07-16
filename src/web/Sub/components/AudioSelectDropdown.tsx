@@ -9,6 +9,8 @@ interface Props {
   onSelect: (val: string) => void
   height?: number
   isDisabled?: boolean
+  focusRequest?: number
+  onFocusRequestHandled?: () => void
 }
 
 export const AudioSelectDropdown: FC<Props> = ({
@@ -18,14 +20,34 @@ export const AudioSelectDropdown: FC<Props> = ({
   onSelect,
   height = 300,
   isDisabled = false,
+  focusRequest = 0,
+  onFocusRequestHandled,
 }) => {
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<VirtualList>(null)
+  const handledFocusRequest = useRef(0)
+
+  useEffect(() => {
+    if (isDisabled || focusRequest <= 0 || handledFocusRequest.current === focusRequest) return
+    handledFocusRequest.current = focusRequest
+    setInputValue(value)
+    setActiveIndex(0)
+    setOpen(true)
+    const frame = requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+      onFocusRequestHandled?.()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusRequest, isDisabled, value, onFocusRequestHandled])
 
   const openDropdown = () => {
     setInputValue(value)
+    setActiveIndex(Math.max(0, options.indexOf(value)))
     setOpen(true)
     requestAnimationFrame(() => {
       inputRef.current?.select()
@@ -55,15 +77,29 @@ export const AudioSelectDropdown: FC<Props> = ({
 
   const ITEM_H = 30
 
+  useEffect(() => {
+    if (!open || filteredOptions.length === 0) return
+    const nextIndex = Math.min(activeIndex, filteredOptions.length - 1)
+    if (nextIndex !== activeIndex) setActiveIndex(nextIndex)
+    listRef.current?.scrollToItem(nextIndex, 'smart')
+  }, [activeIndex, filteredOptions.length, open])
+
+  const selectOption = (opt: string) => {
+    onSelect(opt)
+    setInputValue('')
+    setOpen(false)
+  }
+
   const Row: FC<ListChildComponentProps> = ({ index, style }) => {
     const opt = filteredOptions[index]
     const selected = opt === value
+    const active = index === activeIndex
     return (
       <div
         style={{
           ...style,
-          background: selected ? '#2563eb' : 'transparent',
-          color: selected ? '#fff' : 'inherit',
+          background: active ? '#374151' : (selected ? '#2563eb' : 'transparent'),
+          color: selected || active ? '#fff' : 'inherit',
           padding: '6px 12px',
           cursor: 'pointer',
           userSelect: 'none',
@@ -72,13 +108,8 @@ export const AudioSelectDropdown: FC<Props> = ({
           textOverflow: 'ellipsis',
         }}
         title={opt}
-        onClick={() => {
-          onSelect(opt)
-          setInputValue('')
-          setOpen(false)
-        }}
-        onMouseOver={e => (e.currentTarget.style.background = '#374151')}
-        onMouseOut={e => (e.currentTarget.style.background = selected ? '#2563eb' : 'transparent')}
+        onClick={() => selectOption(opt)}
+        onMouseEnter={() => setActiveIndex(index)}
       >
         {opt}
       </div>
@@ -99,7 +130,28 @@ export const AudioSelectDropdown: FC<Props> = ({
         }}
         onChange={(e: ChangeEvent<HTMLInputElement>) => {
           setInputValue(e.target.value)
+          setActiveIndex(0)
           if (!open) setOpen(true)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            if (!open) {
+              setOpen(true)
+              setActiveIndex(0)
+              return
+            }
+            const direction = e.key === 'ArrowDown' ? 1 : -1
+            setActiveIndex(current => Math.max(0, Math.min(filteredOptions.length - 1, current + direction)))
+          }
+          else if (e.key === 'Enter' && open && filteredOptions[activeIndex]) {
+            e.preventDefault()
+            selectOption(filteredOptions[activeIndex])
+          }
+          else if (e.key === 'Escape' && open) {
+            e.preventDefault()
+            setOpen(false)
+          }
         }}
         cursor="pointer"
         disabled={isDisabled}
@@ -117,6 +169,7 @@ export const AudioSelectDropdown: FC<Props> = ({
           zIndex={10}
         >
           <VirtualList
+            ref={listRef}
             height={Math.min(filteredOptions.length * ITEM_H, height)}
             width="100%"
             itemCount={filteredOptions.length}

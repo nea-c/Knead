@@ -28,6 +28,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
   const timeline = useTimeline()
   const { soundIdList, soundMap } = useAudioLibrary()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [soundFocusRequest, setSoundFocusRequest] = useState(0)
   const anchorRef = useRef<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -85,11 +86,13 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     const id = timeline.addMarker({ tick, soundId: defaultSoundId ?? '' })
     setSelectedIds(new Set([id]))
     anchorRef.current = id
+    setSoundFocusRequest(request => request + 1)
   }, [timeline, defaultSoundId])
 
   const handleAddAtPlayhead = useCallback(() => {
     handleAddAtTick(Math.round(playback.currentTick))
   }, [handleAddAtTick, playback.currentTick])
+  const handleSoundFocusHandled = useCallback(() => setSoundFocusRequest(0), [])
 
   const sortedMarkers = useMemo(
     () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),
@@ -441,6 +444,8 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
         onShiftTick={handleShiftTick}
         onBeginEdit={timeline.beginTransaction}
         onEndEdit={timeline.commitTransaction}
+        soundFocusRequest={soundFocusRequest}
+        onSoundFocusHandled={handleSoundFocusHandled}
       />
     </Box>
   )

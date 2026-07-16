@@ -38,3 +38,4 @@ export interface TimelineFile extends TimelineState {
 }
 
 export const DEFAULT_TIMELINE_LENGTH_TICKS = 200
+export const DEFAULT_RETRIGGER_INTERVAL = 1

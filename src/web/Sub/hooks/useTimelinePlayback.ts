@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Marker } from '../types/timeline'
+import { DEFAULT_RETRIGGER_INTERVAL, type Marker } from '../types/timeline'
 import type { useAudioBufferCache } from './useAudioBufferCache'
 import { sampleCurve } from '../utils/curveSampling'
 
@@ -33,7 +33,9 @@ function enumerateFirings(m: Marker): Firing[] {
       pitch: m.pitch,
     }]
   }
-  const interval = m.retriggerInterval && m.retriggerInterval > 0 ? m.retriggerInterval : 5
+  const interval = m.retriggerInterval && m.retriggerInterval > 0
+    ? m.retriggerInterval
+    : DEFAULT_RETRIGGER_INTERVAL
   const firings: Firing[] = []
   for (let i = 0; i * interval <= dur; i++) {
     const offset = i * interval
