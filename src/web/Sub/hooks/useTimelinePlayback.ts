@@ -27,6 +27,9 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   useEffect(() => { lengthTicksRef.current = lengthTicks }, [lengthTicks])
   // 同期的な多重 play() 防止（state は非同期更新のため）
   const playingRef = useRef(false)
+  // 一時停止中かどうか（同期判定用）
+  const pausedRef = useRef(false)
+  const [isPaused, setIsPaused] = useState(false)
 
   // バッファが未ロードでスケジュールできなかった場合は false を返す。
   // 呼び出し側は true が返った時だけ scheduledIdsRef に登録することで、
@@ -65,12 +68,14 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
 
   const stopInternal = useCallback(() => {
     playingRef.current = false
+    pausedRef.current = false
     stopAllSources()
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
     setIsPlaying(false)
+    setIsPaused(false)
   }, [stopAllSources])
 
   const tick = useCallback(() => {
@@ -123,6 +128,32 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     setCurrentTick(0)
   }, [stopInternal])
 
+  // 一時停止: AudioContext を suspend し、スケジュール済みの音源はそのまま保持する。
+  // Web Audio API の仕様上、AudioContext が suspend している間は再生中の
+  // AudioBufferSourceNode の進行も止まり、resume で続きから再生される。
+  const pause = useCallback(() => {
+    if (!playingRef.current || pausedRef.current) return
+    pausedRef.current = true
+    const ctx = cache.getAudioContext()
+    ctx.suspend().catch(() => {})
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    setIsPlaying(false)
+    setIsPaused(true)
+  }, [cache])
+
+  const resume = useCallback(() => {
+    if (!pausedRef.current) return
+    pausedRef.current = false
+    const ctx = cache.getAudioContext()
+    ctx.resume().catch(() => {})
+    setIsPlaying(true)
+    setIsPaused(false)
+    rafRef.current = requestAnimationFrame(tick)
+  }, [cache, tick])
+
   const seek = useCallback((newTick: number) => {
     const wasPlaying = playingRef.current
     const clamped = Math.max(0, Math.min(lengthTicksRef.current, newTick))
@@ -131,6 +162,8 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     if (wasPlaying) {
       playingRef.current = true
       const ctx = cache.getAudioContext()
+      // pause 中に AudioContext が suspend されている可能性があるため明示的に resume する
+      ctx.resume().catch(() => {})
       playStartAudioTimeRef.current = ctx.currentTime
       startTickRef.current = clamped
       scheduledIdsRef.current.clear()
@@ -145,7 +178,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   }, [stopInternal])
 
   return useMemo(
-    () => ({ isPlaying, currentTick, play, stop, seek }),
-    [isPlaying, currentTick, play, stop, seek],
+    () => ({ isPlaying, isPaused, currentTick, play, stop, pause, resume, seek }),
+    [isPlaying, isPaused, currentTick, play, stop, pause, resume, seek],
   )
 }

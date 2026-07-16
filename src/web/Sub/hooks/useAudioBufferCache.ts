@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
 
 export function useAudioBufferCache() {
@@ -6,6 +6,9 @@ export function useAudioBufferCache() {
   const ctxRef = useRef<AudioContext | null>(null)
   // key = `${soundId}#${variantIndex}` (variantIndex は 0-based のみキャッシュ)
   const cacheRef = useRef<Map<string, AudioBuffer>>(new Map())
+  // 同時に走っている preload() の数。0 になったら preloading を false に戻す (I8)
+  const preloadCountRef = useRef(0)
+  const [preloading, setPreloading] = useState(false)
 
   const getAudioContext = useCallback((): AudioContext => {
     if (!ctxRef.current) ctxRef.current = new AudioContext()
@@ -33,7 +36,16 @@ export function useAudioBufferCache() {
       const variants = soundMap[id] || []
       for (let i = 0; i < variants.length; i++) jobs.push(loadOne(id, i))
     }
-    await Promise.all(jobs)
+    if (jobs.length === 0) return
+    preloadCountRef.current += 1
+    setPreloading(true)
+    try {
+      await Promise.all(jobs)
+    }
+    finally {
+      preloadCountRef.current = Math.max(0, preloadCountRef.current - 1)
+      if (preloadCountRef.current === 0) setPreloading(false)
+    }
   }, [soundMap, loadOne])
 
   const getBuffer = useCallback((soundId: string, variantIndex: number): AudioBuffer | undefined => {
@@ -61,7 +73,7 @@ export function useAudioBufferCache() {
   }, [])
 
   return useMemo(
-    () => ({ preload, getBuffer, getAudioContext, clear }),
-    [preload, getBuffer, getAudioContext, clear],
+    () => ({ preload, getBuffer, getAudioContext, clear, preloading }),
+    [preload, getBuffer, getAudioContext, clear, preloading],
   )
 }

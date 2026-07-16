@@ -13,12 +13,14 @@ interface Props {
   onTogglePlay: () => void
   onStop: () => void
   isPlaying: boolean
+  currentTick: number
+  preloading: boolean
 }
 
 export const TimelineToolbar: React.FC<Props> = ({
   onAddMarker, onDeleteSelected, canDelete,
   onOpen, onSave, onSaveAs, dirty, filePath,
-  onTogglePlay, onStop, isPlaying,
+  onTogglePlay, onStop, isPlaying, currentTick, preloading,
 }) => {
   const fileName = filePath ? filePath.replace(/^.*[\\\/]/, '') : '(未保存)'
   return (
@@ -27,8 +29,16 @@ export const TimelineToolbar: React.FC<Props> = ({
       <Button size="sm" onClick={onSave}>保存</Button>
       <Button size="sm" onClick={onSaveAs}>名前を付けて保存</Button>
       <Box w="1px" h="20px" bg="gray.600" mx="1" />
-      <Button size="sm" colorScheme={isPlaying ? 'red' : 'green'} onClick={onTogglePlay}>{isPlaying ? '■停止' : '▶再生'}</Button>
-      <Button size="sm" onClick={onStop} isDisabled={!isPlaying}>■リセット</Button>
+      <Button
+        size="sm"
+        colorScheme={preloading ? 'gray' : isPlaying ? 'red' : 'green'}
+        onClick={onTogglePlay}
+        isDisabled={preloading}
+      >
+        {preloading ? '読込中…' : (isPlaying ? '⏸一時停止' : '▶再生')}
+      </Button>
+      {/* 自然終了後も currentTick は末尾に残るため、isPlaying ではなく currentTick > 0 で活性化する (I5) */}
+      <Button size="sm" onClick={onStop} isDisabled={currentTick <= 0}>■リセット</Button>
       <Box w="1px" h="20px" bg="gray.600" mx="1" />
       <Button size="sm" colorScheme="blue" onClick={onAddMarker}>+ マーカー追加</Button>
       <Button size="sm" colorScheme="red" onClick={onDeleteSelected} isDisabled={!canDelete}>削除</Button>

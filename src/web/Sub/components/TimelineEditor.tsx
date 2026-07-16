@@ -132,7 +132,13 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      // 入力系要素やボタン、contentEditable にフォーカスがある間はショートカットを発火させない (I4)
+      if (
+        target.tagName === 'INPUT'
+        || target.tagName === 'TEXTAREA'
+        || target.tagName === 'BUTTON'
+        || target.isContentEditable
+      ) return
       const { selectedIds, markers, handleDeleteSelected, playback } = latestRef.current
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.size > 0) { e.preventDefault(); handleDeleteSelected() }
@@ -146,7 +152,9 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
       }
       else if (e.key === ' ') {
         e.preventDefault()
-        if (playback.isPlaying) playback.stop()
+        // idle → play / playing → pause / paused → resume (I6)
+        if (playback.isPlaying) playback.pause()
+        else if (playback.isPaused) playback.resume()
         else playback.play()
       }
       else if (e.key === 'Home') {
@@ -177,9 +185,15 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
         onSaveAs={handleSaveAs}
         dirty={dirty}
         filePath={filePath}
-        onTogglePlay={() => playback.isPlaying ? playback.stop() : playback.play()}
+        onTogglePlay={() => {
+          if (playback.isPlaying) playback.pause()
+          else if (playback.isPaused) playback.resume()
+          else playback.play()
+        }}
         onStop={() => playback.stop()}
         isPlaying={playback.isPlaying}
+        currentTick={playback.currentTick}
+        preloading={cache.preloading}
       />
       <Box ref={scrollRef} flex="1" overflow="auto">
         <Box position="relative" w={`${contentWidth}px`}>

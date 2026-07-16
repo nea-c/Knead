@@ -44,7 +44,10 @@ export function useTimeline(initial?: TimelineState) {
   const moveMarker = useCallback((id: string, newTick: Tick) => {
     setState(produce((draft) => {
       const m = draft.markers.find(m => m.id === id)
-      if (m) m.tick = Math.max(0, Math.trunc(newTick))
+      if (!m) return
+      // lengthTicks ちょうどのマーカーは鳴動しないため、末尾は lengthTicks - 1 にクランプする (I7)
+      const maxTick = Math.max(0, draft.lengthTicks - 1)
+      m.tick = Math.min(maxTick, Math.max(0, Math.trunc(newTick)))
     }))
   }, [])
 
@@ -53,7 +56,10 @@ export function useTimeline(initial?: TimelineState) {
       const m = draft.markers.find(m => m.id === id)
       if (!m) return
       Object.assign(m, patch)
-      if (patch.tick !== undefined) m.tick = Math.max(0, Math.trunc(patch.tick))
+      if (patch.tick !== undefined) {
+        const maxTick = Math.max(0, draft.lengthTicks - 1)
+        m.tick = Math.min(maxTick, Math.max(0, Math.trunc(patch.tick)))
+      }
     }))
   }, [])
 

@@ -171,13 +171,21 @@ export const initIpcMain = (): void => {
       defaultPath: string | undefined,
       json: string,
     ): Promise<{ ok: true, path: string } | { ok: false, canceled: true } | { ok: false, error: string }> => {
+      // win が取れない場合でも Electron はウィンドウレスなダイアログ表示を受け付けるため、
+      // win! のような非 null アサーションはせず、あるかどうかで呼び分ける (I9)
       const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
       try {
-        const result = await dialog.showSaveDialog(win!, {
-          title: 'Knead Project を保存',
-          defaultPath: defaultPath ?? 'timeline.kp',
-          filters: [{ name: 'Knead Project', extensions: ['kp'] }],
-        })
+        const result = win
+          ? await dialog.showSaveDialog(win, {
+            title: 'Knead Project を保存',
+            defaultPath: defaultPath ?? 'timeline.kp',
+            filters: [{ name: 'Knead Project', extensions: ['kp'] }],
+          })
+          : await dialog.showSaveDialog({
+            title: 'Knead Project を保存',
+            defaultPath: defaultPath ?? 'timeline.kp',
+            filters: [{ name: 'Knead Project', extensions: ['kp'] }],
+          })
         if (result.canceled || !result.filePath) return { ok: false, canceled: true }
         await fs.promises.writeFile(result.filePath, json, 'utf-8')
         return { ok: true, path: result.filePath }
@@ -195,11 +203,17 @@ export const initIpcMain = (): void => {
     ): Promise<{ ok: true, path: string, json: string } | { ok: false, canceled: true } | { ok: false, error: string }> => {
       const win = BrowserWindow.fromWebContents(event.sender) ?? undefined
       try {
-        const result = await dialog.showOpenDialog(win!, {
-          title: 'Knead Project を開く',
-          properties: ['openFile'],
-          filters: [{ name: 'Knead Project', extensions: ['kp'] }],
-        })
+        const result = win
+          ? await dialog.showOpenDialog(win, {
+            title: 'Knead Project を開く',
+            properties: ['openFile'],
+            filters: [{ name: 'Knead Project', extensions: ['kp'] }],
+          })
+          : await dialog.showOpenDialog({
+            title: 'Knead Project を開く',
+            properties: ['openFile'],
+            filters: [{ name: 'Knead Project', extensions: ['kp'] }],
+          })
         if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true }
         const filePath = result.filePaths[0]
         const json = await fs.promises.readFile(filePath, 'utf-8')
