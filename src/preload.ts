@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('myAPI', {
   getMainSelectedSound: () => ipcRenderer.invoke('get_main_selected_sound'),
   setSelectedSound: (id: string) => ipcRenderer.send('set_selected_sound', id),
   timeline: {
+    save: (
+      json: string,
+    ): Promise<{ ok: true, path: string } | { ok: false, error: string }> =>
+      ipcRenderer.invoke('timeline:save', json),
     saveDialog: (
       defaultPath: string | undefined,
       json: string,

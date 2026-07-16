@@ -41,5 +41,10 @@ export const SubApp = () => {
     return () => clearInterval(interval)
   }, [])
 
-  return <TimelineEditor defaultSoundId={mainSelectedId} />
+  return (
+    <TimelineEditor
+      defaultSoundId={mainSelectedId}
+      currentTargetVersion={targetVersion?.raw}
+    />
+  )
 }

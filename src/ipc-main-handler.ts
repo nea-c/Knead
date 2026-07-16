@@ -45,6 +45,7 @@ const getHashBySoundName = (hashMap: { [key: string]: { hash: string } }, soundN
 }
 
 let mainSelectedSoundId = ''
+const timelineFilePaths = new Map<number, string>()
 
 export const initIpcMain = (): void => {
   ipcMain.handle('get_versions', async () => {
@@ -165,6 +166,24 @@ export const initIpcMain = (): void => {
   })
 
   ipcMain.handle(
+    'timeline:save',
+    async (
+      event,
+      json: string,
+    ): Promise<{ ok: true, path: string } | { ok: false, error: string }> => {
+      const filePath = timelineFilePaths.get(event.sender.id)
+      if (!filePath) return { ok: false, error: '上書き先が未選択です' }
+      try {
+        await fs.promises.writeFile(filePath, json, 'utf-8')
+        return { ok: true, path: filePath }
+      }
+      catch (e) {
+        return { ok: false, error: (e as Error).message }
+      }
+    },
+  )
+
+  ipcMain.handle(
     'timeline:save-dialog',
     async (
       event,
@@ -188,6 +207,7 @@ export const initIpcMain = (): void => {
           })
         if (result.canceled || !result.filePath) return { ok: false, canceled: true }
         await fs.promises.writeFile(result.filePath, json, 'utf-8')
+        timelineFilePaths.set(event.sender.id, result.filePath)
         return { ok: true, path: result.filePath }
       }
       catch (e) {
@@ -217,6 +237,7 @@ export const initIpcMain = (): void => {
         if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true }
         const filePath = result.filePaths[0]
         const json = await fs.promises.readFile(filePath, 'utf-8')
+        timelineFilePaths.set(event.sender.id, filePath)
         return { ok: true, path: filePath, json }
       }
       catch (e) {

@@ -16,6 +16,7 @@ import { TimelinePropertyPanel } from './TimelinePropertyPanel'
 
 interface Props {
   defaultSoundId?: string
+  currentTargetVersion?: string
 }
 
 interface ClipboardItem {
@@ -23,7 +24,7 @@ interface ClipboardItem {
   data: Omit<Marker, 'id' | 'tick'>
 }
 
-export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
+export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetVersion }) => {
   const timeline = useTimeline()
   const { soundIdList, soundMap } = useAudioLibrary()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -57,6 +58,13 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     setDirty(true)
   }, [timeline.state])
 
+  // SubApp の設定読込は非同期なので、空の新規プロジェクトに限って保存対象バージョンを補完する。
+  useEffect(() => {
+    if (!currentTargetVersion || timeline.state.targetVersion || filePath) return
+    skipDirtyRef.current = true
+    timeline.setTargetVersion(currentTargetVersion)
+  }, [currentTargetVersion, filePath, timeline])
+
   // ウィンドウタイトルに未保存マーク * を反映
   useEffect(() => {
     const name = filePath ? filePath.replace(/^.*[\\\/]/, '') : '(未保存)'
@@ -87,6 +95,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),
     [timeline.state.markers],
   )
+  const validSoundIds = useMemo(() => new Set(soundIdList), [soundIdList])
 
   const handleMarkerClick = useCallback((id: string, mods: SelectModifiers) => {
     setSelectedIds((prev) => {
@@ -195,8 +204,20 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     setSelectedIds(new Set())
     anchorRef.current = null
     setDirty(false)
-    if (parsed.warnings.length > 0) window.alert(`警告:\n${parsed.warnings.join('\n')}`)
-  }, [timeline, confirmDiscardIfDirty])
+    const warnings = [...parsed.warnings]
+    if (currentTargetVersion && parsed.state.targetVersion !== currentTargetVersion) {
+      warnings.push(`このプロジェクトは Minecraft ${parsed.state.targetVersion || '(未指定)'} 用です。現在の選択は ${currentTargetVersion} です。`)
+    }
+    const missingSoundIds = Array.from(new Set(
+      parsed.state.markers
+        .map(marker => marker.soundId)
+        .filter(soundId => soundId && !soundMap[soundId]),
+    ))
+    if (missingSoundIds.length > 0) {
+      warnings.push(`現在のバージョンに存在しない soundId: ${missingSoundIds.join(', ')}`)
+    }
+    if (warnings.length > 0) window.alert(`警告:\n${warnings.join('\n')}`)
+  }, [timeline, confirmDiscardIfDirty, currentTargetVersion, soundMap])
 
   const handleSaveAs = useCallback(async () => {
     const json = serialize(timeline.state)
@@ -211,8 +232,17 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   }, [timeline.state, filePath])
 
   const handleSave = useCallback(async () => {
-    await handleSaveAs()
-  }, [handleSaveAs])
+    if (!filePath) {
+      await handleSaveAs()
+      return
+    }
+    const res = await window.myAPI.timeline.save(serialize(timeline.state))
+    if (!res.ok) {
+      window.alert(`保存エラー: ${res.error}`)
+      return
+    }
+    setDirty(false)
+  }, [filePath, handleSaveAs, timeline.state])
 
   // キーボードショートカット
   const latestRef = useRef({
@@ -381,6 +411,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
           />
           <TimelineTrack
             markers={sortedMarkers}
+            validSoundIds={validSoundIds}
             lengthTicks={timeline.state.lengthTicks}
             pxPerTick={pxPerTick}
             selectedIds={selectedIds}

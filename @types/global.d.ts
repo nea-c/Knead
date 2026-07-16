@@ -24,6 +24,9 @@ export interface Sandbox {
   setSelectedSound: (id: string) => void
   getMainSelectedSound: () => Promise<string>
   timeline: {
+    save: (
+      json: string,
+    ) => Promise<{ ok: true, path: string } | { ok: false, error: string }>
     saveDialog: (
       defaultPath: string | undefined,
       json: string,

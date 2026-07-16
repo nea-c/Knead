@@ -19,33 +19,93 @@ function isObj(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x)
 }
 
+function validateHandle(x: unknown): boolean {
+  if (!isObj(x)) return false
+  return typeof x.dt === 'number'
+    && Number.isFinite(x.dt)
+    && typeof x.dv === 'number'
+    && Number.isFinite(x.dv)
+}
+
 function validateKeyframe(x: unknown): x is Keyframe {
   if (!isObj(x)) return false
-  if (typeof x.tick !== 'number' || !Number.isFinite(x.tick)) return false
+  if (typeof x.tick !== 'number' || !Number.isInteger(x.tick) || x.tick < 0) return false
   if (typeof x.value !== 'number' || !Number.isFinite(x.value)) return false
   if (x.interpolation !== 'linear' && x.interpolation !== 'bezier') return false
+  if (x.handleL !== undefined && !validateHandle(x.handleL)) return false
+  if (x.handleR !== undefined && !validateHandle(x.handleR)) return false
   return true
 }
 
-function validateMarker(x: unknown, warnings: string[]): x is Marker {
-  if (!isObj(x)) return false
-  if (typeof x.id !== 'string' || x.id.length === 0) return false
-  if (typeof x.tick !== 'number' || !Number.isInteger(x.tick) || x.tick < 0) return false
-  if (typeof x.soundId !== 'string') return false
-  if (typeof x.variantIndex !== 'number' || !Number.isInteger(x.variantIndex)) return false
-  if (typeof x.volume !== 'number' || !Number.isFinite(x.volume)) return false
-  if (typeof x.pitch !== 'number' || !Number.isFinite(x.pitch)) return false
-  if (x.duration !== undefined && (typeof x.duration !== 'number' || !Number.isInteger(x.duration) || x.duration < 0)) return false
-  if (x.retriggerInterval !== undefined && (typeof x.retriggerInterval !== 'number' || !Number.isInteger(x.retriggerInterval) || x.retriggerInterval <= 0)) return false
+function validateCurve(
+  x: unknown,
+  duration: number,
+  valueMin: number,
+  valueMax: number,
+): string | null {
+  if (!isObj(x) || !Array.isArray(x.keyframes)) return 'keyframes が配列ではありません'
+  if (x.keyframes.length === 0) return 'keyframes が空です'
+
+  let previousTick = -1
+  for (let i = 0; i < x.keyframes.length; i++) {
+    const keyframe = x.keyframes[i]
+    if (!validateKeyframe(keyframe)) return 'keyframes[' + i + '] の形式が不正です'
+    if (keyframe.tick <= previousTick) return 'keyframes が tick 昇順ではありません'
+    if (keyframe.tick > duration) return 'keyframes[' + i + '].tick が duration を超えています'
+    if (keyframe.value < valueMin || keyframe.value > valueMax) {
+      return 'keyframes[' + i + '].value が範囲外です'
+    }
+    previousTick = keyframe.tick
+  }
+  return null
+}
+
+function validateMarker(x: unknown, lengthTicks: number): string | null {
+  if (!isObj(x)) return 'オブジェクトではありません'
+  if (typeof x.id !== 'string' || x.id.length === 0) return 'id が空です'
+  if (typeof x.tick !== 'number' || !Number.isInteger(x.tick) || x.tick < 0 || x.tick >= lengthTicks) {
+    return 'tick がタイムライン範囲外です'
+  }
+  if (typeof x.soundId !== 'string') return 'soundId が文字列ではありません'
+  if (typeof x.variantIndex !== 'number' || !Number.isInteger(x.variantIndex) || x.variantIndex < -1) {
+    return 'variantIndex が不正です'
+  }
+  if (typeof x.volume !== 'number' || !Number.isFinite(x.volume) || x.volume < 0 || x.volume > 1) {
+    return 'volume が 0..1 の範囲外です'
+  }
+  if (typeof x.pitch !== 'number' || !Number.isFinite(x.pitch) || x.pitch < 0.5 || x.pitch > 2) {
+    return 'pitch が 0.5..2 の範囲外です'
+  }
+  if (
+    x.duration !== undefined
+    && (typeof x.duration !== 'number' || !Number.isInteger(x.duration) || x.duration < 0)
+  ) {
+    return 'duration が不正です'
+  }
+  if (
+    x.retriggerInterval !== undefined
+    && (
+      typeof x.retriggerInterval !== 'number'
+      || !Number.isInteger(x.retriggerInterval)
+      || x.retriggerInterval <= 0
+    )
+  ) {
+    return 'retriggerInterval が正の整数ではありません'
+  }
+
+  const duration = typeof x.duration === 'number' ? x.duration : 0
+  if ((x.volumeCurve !== undefined || x.pitchCurve !== undefined) && duration <= 0) {
+    return '単発マーカーにカーブは設定できません'
+  }
   if (x.volumeCurve !== undefined) {
-    if (!isObj(x.volumeCurve) || !Array.isArray(x.volumeCurve.keyframes)) return false
-    if (!x.volumeCurve.keyframes.every(validateKeyframe)) return false
+    const error = validateCurve(x.volumeCurve, duration, 0, 1)
+    if (error) return 'volumeCurve: ' + error
   }
   if (x.pitchCurve !== undefined) {
-    if (!isObj(x.pitchCurve) || !Array.isArray(x.pitchCurve.keyframes)) return false
-    if (!x.pitchCurve.keyframes.every(validateKeyframe)) return false
+    const error = validateCurve(x.pitchCurve, duration, 0.5, 2)
+    if (error) return 'pitchCurve: ' + error
   }
-  return true
+  return null
 }
 
 export function parse(json: string): ParseResult {
@@ -54,37 +114,44 @@ export function parse(json: string): ParseResult {
     raw = JSON.parse(json)
   }
   catch (e) {
-    return { ok: false, error: `JSON パース失敗: ${(e as Error).message}` }
+    return { ok: false, error: 'JSON パース失敗: ' + (e as Error).message }
   }
   if (!isObj(raw)) return { ok: false, error: 'ルートがオブジェクトではありません' }
-  if (raw.format !== 'knead-project') return { ok: false, error: `format が 'knead-project' ではありません (got: ${JSON.stringify(raw.format)})` }
-  if (raw.version !== 1) return { ok: false, error: `version ${JSON.stringify(raw.version)} は未対応です (対応: 1)` }
+  if (raw.format !== 'knead-project') {
+    return { ok: false, error: `format が 'knead-project' ではありません (got: ${JSON.stringify(raw.format)})` }
+  }
+  if (raw.version !== 1) {
+    return { ok: false, error: 'version ' + JSON.stringify(raw.version) + ' は未対応です (対応: 1)' }
+  }
   if (typeof raw.targetVersion !== 'string') return { ok: false, error: 'targetVersion が文字列ではありません' }
-  if (typeof raw.lengthTicks !== 'number' || !Number.isInteger(raw.lengthTicks) || raw.lengthTicks < 1) return { ok: false, error: 'lengthTicks が正の整数ではありません' }
+  if (
+    typeof raw.lengthTicks !== 'number'
+    || !Number.isInteger(raw.lengthTicks)
+    || raw.lengthTicks < 1
+  ) {
+    return { ok: false, error: 'lengthTicks が正の整数ではありません' }
+  }
   if (!Array.isArray(raw.markers)) return { ok: false, error: 'markers が配列ではありません' }
 
-  const warnings: string[] = []
-  const validMarkers: Marker[] = []
-  raw.markers.forEach((m: unknown, i: number) => {
-    if (validateMarker(m, warnings)) {
-      validMarkers.push(m)
-    }
-    else {
-      warnings.push(`markers[${i}] が不正なため除外`)
-    }
-  })
+  const ids = new Set<string>()
+  for (let i = 0; i < raw.markers.length; i++) {
+    const marker = raw.markers[i]
+    const error = validateMarker(marker, raw.lengthTicks)
+    if (error) return { ok: false, error: 'markers[' + i + ']: ' + error }
+    if (ids.has(marker.id)) return { ok: false, error: 'markers[' + i + ']: id が重複しています' }
+    ids.add(marker.id)
+  }
 
   return {
     ok: true,
     state: {
       targetVersion: raw.targetVersion,
       lengthTicks: raw.lengthTicks,
-      markers: validMarkers,
+      markers: raw.markers as Marker[],
     },
-    warnings,
+    warnings: [],
   }
 }
-
 export function _selfCheckTimelineIO(): void {
   // 往路テスト
   const state: TimelineState = {
@@ -109,17 +176,38 @@ export function _selfCheckTimelineIO(): void {
   const badVer = parse(JSON.stringify({ format: 'knead-project', version: 2, targetVersion: '', lengthTicks: 1, markers: [] }))
   if (badVer.ok) throw new Error(`version 2 を受け入れてしまった`)
 
-  // 壊れた marker はスキップ扱い
+  // 壊れた marker が 1 件でもあれば、部分読込せず全体を拒否する
   const withBad = parse(JSON.stringify({
     format: 'knead-project', version: 1, targetVersion: '', lengthTicks: 100,
     markers: [
       { id: 'ok', tick: 0, soundId: '', variantIndex: -1, volume: 1, pitch: 1 },
-      { id: 'bad', tick: -5, soundId: '', variantIndex: -1, volume: 1, pitch: 1 }, // tick 負
+      { id: 'bad', tick: -5, soundId: '', variantIndex: -1, volume: 1, pitch: 1 },
     ],
   }))
-  if (!withBad.ok) throw new Error(`部分不正で全体を落としてしまった: ${withBad.error}`)
-  if (withBad.state.markers.length !== 1) throw new Error(`不正マーカーを除外していない`)
-  if (withBad.warnings.length !== 1) throw new Error(`warning が出ていない`)
+  if (withBad.ok) throw new Error('不正マーカーを含むファイルを受け入れてしまった')
 
+  const duplicateId = parse(JSON.stringify({
+    format: 'knead-project', version: 1, targetVersion: '', lengthTicks: 100,
+    markers: [
+      { id: 'same', tick: 0, soundId: '', variantIndex: -1, volume: 1, pitch: 1 },
+      { id: 'same', tick: 1, soundId: '', variantIndex: -1, volume: 1, pitch: 1 },
+    ],
+  }))
+  if (duplicateId.ok) throw new Error('重複 marker id を受け入れてしまった')
+
+  const badCurve = parse(JSON.stringify({
+    format: 'knead-project', version: 1, targetVersion: '', lengthTicks: 100,
+    markers: [{
+      id: 'curve', tick: 0, soundId: '', variantIndex: -1, volume: 1, pitch: 1,
+      duration: 20,
+      volumeCurve: {
+        keyframes: [
+          { tick: 10, value: 1, interpolation: 'linear' },
+          { tick: 5, value: 0.5, interpolation: 'linear' },
+        ],
+      },
+    }],
+  }))
+  if (badCurve.ok) throw new Error('tick 順が不正なカーブを受け入れてしまった')
   console.log('timelineIO self-check OK')
 }

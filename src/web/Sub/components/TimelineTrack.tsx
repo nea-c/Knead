@@ -11,6 +11,7 @@ export interface SelectModifiers {
 
 interface Props {
   markers: Marker[]
+  validSoundIds: Set<string>
   lengthTicks: number
   pxPerTick: number
   selectedIds: Set<string>
@@ -41,7 +42,7 @@ interface RectState {
 }
 
 export const TimelineTrack: React.FC<Props> = ({
-  markers, lengthTicks, pxPerTick, selectedIds,
+  markers, validSoundIds, lengthTicks, pxPerTick, selectedIds,
   onMarkerClick, onClearSelection, onRectangleSelect,
   onBeginMove, onMoveMarkers, onEndMove, onAddMarker,
 }) => {
@@ -196,6 +197,7 @@ export const TimelineTrack: React.FC<Props> = ({
         <TimelineMarker
           key={m.id}
           marker={m}
+          invalidSound={m.soundId === '' || !validSoundIds.has(m.soundId)}
           pxPerTick={pxPerTick}
           selected={selectedIds.has(m.id)}
           onPointerDown={handleMarkerPointerDown(m.id)}
