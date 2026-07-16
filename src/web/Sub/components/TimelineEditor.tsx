@@ -1,6 +1,7 @@
 // src/web/Sub/components/TimelineEditor.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box } from '@yamada-ui/react'
+import type { Marker } from '../types/timeline'
 import { useTimeline } from '../hooks/useTimeline'
 import { useAudioBufferCache } from '../hooks/useAudioBufferCache'
 import { useTimelinePlayback } from '../hooks/useTimelinePlayback'
@@ -198,6 +199,9 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     ? timeline.state.markers.find(m => m.id === singleSelectedId) ?? null
     : null
   const variantCount = singleSelected ? (soundMap[singleSelected.soundId]?.length ?? 0) : 0
+  const handlePanelChange = useCallback((patch: Partial<Marker>) => {
+    if (singleSelectedId) timeline.updateMarker(singleSelectedId, patch)
+  }, [singleSelectedId, timeline])
 
   const contentWidth = tickToPx(timeline.state.lengthTicks, pxPerTick)
   const trackAreaHeight = 24 + 64 // Ruler + Track
@@ -252,9 +256,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
         lengthTicks={timeline.state.lengthTicks}
         soundIdList={soundIdList}
         variantCount={variantCount}
-        onChange={(patch) => {
-          if (singleSelectedId) timeline.updateMarker(singleSelectedId, patch)
-        }}
+        onChange={handlePanelChange}
       />
     </Box>
   )

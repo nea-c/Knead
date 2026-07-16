@@ -1,6 +1,7 @@
 import React from 'react'
 import { Box, Flex, NumberInput, Select, SelectItem, Slider, Text } from '@yamada-ui/react'
 import type { Marker } from '../types/timeline'
+import { AudioSelectDropdown } from './AudioSelectDropdown'
 
 interface Props {
   marker: Marker | null
@@ -13,9 +14,9 @@ interface Props {
 
 const PANEL_HEIGHT = 180
 
-export const TimelinePropertyPanel: React.FC<Props> = ({
+export const TimelinePropertyPanel: React.FC<Props> = React.memo(function TimelinePropertyPanel({
   marker, selectionCount, lengthTicks, soundIdList, variantCount, onChange,
-}) => {
+}) {
   if (selectionCount === 0) {
     return (
       <Box
@@ -37,10 +38,6 @@ export const TimelinePropertyPanel: React.FC<Props> = ({
     )
   }
 
-  const soundItems: SelectItem[] = [
-    { label: '(未指定)', value: '' },
-    ...soundIdList.map(id => ({ label: id, value: id })),
-  ]
   const variantItems: SelectItem[] = [
     { label: '-1: ランダム', value: '-1' },
     ...Array.from({ length: variantCount }, (_, i) => ({ label: `${i}`, value: `${i}` })),
@@ -65,14 +62,13 @@ export const TimelinePropertyPanel: React.FC<Props> = ({
           />
         </Box>
 
-        <Box minW="240px">
+        <Box w="240px">
           <Text fontSize="sm" color="gray.400" mb="1">Sound</Text>
-          <Select
+          <AudioSelectDropdown
+            options={soundIdList}
             value={marker.soundId}
-            items={soundItems}
-            onChange={v => onChange({ soundId: v })}
-            w="240px"
-            placeholderInOptions={false}
+            placeholder="(未指定)"
+            onSelect={v => onChange({ soundId: v })}
           />
         </Box>
 
@@ -120,4 +116,4 @@ export const TimelinePropertyPanel: React.FC<Props> = ({
       </Flex>
     </Box>
   )
-}
+})
