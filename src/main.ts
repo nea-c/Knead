@@ -40,9 +40,9 @@ const createMainWindow = () => {
 
 const createSubWindow = () => {
   const subWindow = new BrowserWindow({
-    width: 950,
+    width: 1200,
     height: 650 + 40,
-    minWidth: 650,
+    minWidth: 900,
     minHeight: 650,
     frame: true,
     title: 'Knead',

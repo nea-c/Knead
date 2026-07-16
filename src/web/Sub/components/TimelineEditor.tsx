@@ -439,6 +439,8 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
         variants={variants}
         onChange={handlePanelChange}
         onShiftTick={handleShiftTick}
+        onBeginEdit={timeline.beginTransaction}
+        onEndEdit={timeline.commitTransaction}
       />
     </Box>
   )

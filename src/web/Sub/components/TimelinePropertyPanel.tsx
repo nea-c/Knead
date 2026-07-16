@@ -13,6 +13,8 @@ interface Props {
   variants: { path: string, hash: string }[]
   onChange: (patch: Partial<Marker>) => void
   onShiftTick: (delta: number) => void
+  onBeginEdit: () => void
+  onEndEdit: () => void
 }
 
 const PANEL_HEIGHT = 200
@@ -29,7 +31,8 @@ function commonValue<T>(items: Marker[], get: (m: Marker) => T): T | typeof MIXE
 }
 
 export const TimelinePropertyPanel: React.FC<Props> = React.memo(function TimelinePropertyPanel({
-  marker, selectionCount, selectedMarkers, lengthTicks, soundIdList, variants, onChange, onShiftTick,
+  marker, selectionCount, selectedMarkers, lengthTicks, soundIdList, variants,
+  onChange, onShiftTick, onBeginEdit, onEndEdit,
 }) {
   const [tickShift, setTickShift] = useState<number>(0)
 
@@ -226,6 +229,8 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             fallback={marker.volume}
             curve={marker.volumeCurve}
             onChange={(next: Curve | undefined) => onChange({ volumeCurve: next })}
+            onBeginEdit={onBeginEdit}
+            onEndEdit={onEndEdit}
           />
           <CurveEditor
             label="Pitch カーブ"
@@ -234,6 +239,8 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             fallback={marker.pitch}
             curve={marker.pitchCurve}
             onChange={(next: Curve | undefined) => onChange({ pitchCurve: next })}
+            onBeginEdit={onBeginEdit}
+            onEndEdit={onEndEdit}
           />
         </Flex>
       )}
