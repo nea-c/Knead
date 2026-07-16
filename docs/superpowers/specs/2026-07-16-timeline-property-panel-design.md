@@ -135,22 +135,24 @@ const variantCount = singleSelected
 
 ## テスト計画
 
-**Vitest コンポーネントテスト（`TimelinePropertyPanel.test.tsx`）:**
+本プロジェクトは Vitest/Jest を持たず、`npm run selfcheck` によるユーティリティ純関数の自己検査 + Electron 起動での手動確認をテスト方式としている。この方針に沿う。
 
-1. `selectionCount === 0` → プレースホルダー「マーカーを選択してください」が表示される。
-2. `selectionCount === 2` → プレースホルダー「複数選択中」が表示される。
-3. `selectionCount === 1` + marker → 5 フィールドが表示され、初期値が marker の値と一致する。
-4. Volume slider を 0.5 に動かす → `onChange({ volume: 0.5 })` が呼ばれる。
-5. Sound select を変更 → `onChange({ soundId: '...' })` が呼ばれる。
-6. Variant: `variantCount === 0` のとき Select が disabled。
-7. Variant: `variantCount === 3` のとき `-1..2` の 4 択が表示される。
-8. Tick NumberInput の max が `lengthTicks - 1` に設定される。
+**Pure logic の self-check（該当があれば）:**
 
-**手動確認:**
+Phase 2 の Panel は状態を持たないため純関数の追加は想定しないが、実装中に切り出したヘルパー（例: variant Select 用のオプション配列生成）が生じた場合は `_selfCheckPropertyPanel()` を同ファイル末尾に追加し、`package.json` の `selfcheck` に連結する（既存 `_selfCheckTickPixel` / `_selfCheckTimelineIO` と同じスタイル）。
 
-- マーカー選択 → Panel に情報表示 → Slider 動かして再生 → 音量/音高が反映されて再生される
-- Sound 変更後にプリロード完了を待って再生し、正しい音が鳴る
-- 未保存表示 `*` が Panel 経由の変更でも点灯する
+**手動確認チェックリスト:**
+
+1. マーカー未選択 → 「マーカーを選択してください」が表示される。
+2. マーカー 1 件選択 → Tick / Sound / Variant / Volume / Pitch の 5 フィールドが表示される。
+3. Shift+クリック等で 2 件以上選択（現状は未実装なので `setSelectedIds` を DevTools から手動で 2 件に設定してもよい）→ 「複数選択中」プレースホルダーが表示される。
+4. Volume slider を 0.5 に動かして再生 → 音量が半分で再生される。
+5. Pitch slider を 1.5 に動かして再生 → 音高が上がって再生される。
+6. Sound select で別 ID に変更 → 自動プリロード完了後に再生でき、選んだ音が鳴る。
+7. Variant を `-1: ランダム` から `0` に変更 → 再生で常に同じ variant が鳴る。
+8. 現 soundId の variant が 0 個（空 soundId や未定義）→ Variant Select が disabled。
+9. Tick NumberInput に `lengthTicks` 以上を入力しようとしても `lengthTicks - 1` にクランプされる。
+10. 上記いずれの変更後もツールバー / ウィンドウタイトルに未保存表示 `*` が点灯する。
 
 ## 実装順（想定）
 
