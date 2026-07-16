@@ -44,9 +44,13 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     document.title = `${dirty ? '* ' : ''}Knead - ${name}`
   }, [dirty, filePath])
 
-  // マーカー配列変化のたびにキャッシュを再プリロード（差分だけロード）
+  // マーカー配列変化のたびにキャッシュを再プリロード（soundId の集合が実際に変わった時だけ） (M11)
+  const preloadKeyRef = useRef<string>('')
   useEffect(() => {
-    const ids = Array.from(new Set(timeline.state.markers.map(m => m.soundId).filter(Boolean)))
+    const ids = Array.from(new Set(timeline.state.markers.map(m => m.soundId).filter(Boolean))).sort()
+    const key = ids.join('|')
+    if (key === preloadKeyRef.current) return
+    preloadKeyRef.current = key
     cache.preload(ids).catch(err => console.error('preload failed', err))
   }, [timeline.state.markers, cache])
 
@@ -165,6 +169,21 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // 再生中はプレイヘッドが常に見えるようスクロール追従させる (M13)
+  useEffect(() => {
+    if (!playback.isPlaying) return
+    const el = scrollRef.current
+    if (!el) return
+    const playheadPx = tickToPx(playback.currentTick, pxPerTick)
+    const margin = 40
+    if (playheadPx < el.scrollLeft + margin) {
+      el.scrollLeft = Math.max(0, playheadPx - margin)
+    }
+    else if (playheadPx > el.scrollLeft + el.clientWidth - margin) {
+      el.scrollLeft = playheadPx - el.clientWidth + margin
+    }
+  }, [playback.currentTick, playback.isPlaying, pxPerTick])
 
   const sortedMarkers = useMemo(
     () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),

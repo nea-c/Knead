@@ -4,7 +4,7 @@ import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
 export function useAudioBufferCache() {
   const { soundMap } = useAudioLibrary()
   const ctxRef = useRef<AudioContext | null>(null)
-  // key = `${soundId}#${variantIndex}` (variantIndex は 0-based のみキャッシュ)
+  // key = variant の hash（設計仕様どおり。同じ hash を共有する variant はデコード済みバッファを共有する) (M10)
   const cacheRef = useRef<Map<string, AudioBuffer>>(new Map())
   // 同時に走っている preload() の数。0 になったら preloading を false に戻す (I8)
   const preloadCountRef = useRef(0)
@@ -18,16 +18,15 @@ export function useAudioBufferCache() {
   const loadOne = useCallback(async (soundId: string, variantIndex: number): Promise<void> => {
     const variants = soundMap[soundId]
     if (!variants || !variants[variantIndex]) return
-    const key = `${soundId}#${variantIndex}`
-    if (cacheRef.current.has(key)) return
     const hash = variants[variantIndex].hash
     if (!hash) return
+    if (cacheRef.current.has(hash)) return
     const absPath = await window.myAPI.get_mcSoundHash(hash)
     if (!absPath) return
     const res = await fetch('file://' + absPath)
     const arr = await res.arrayBuffer()
     const buf = await getAudioContext().decodeAudioData(arr)
-    cacheRef.current.set(key, buf)
+    cacheRef.current.set(hash, buf)
   }, [soundMap, getAudioContext])
 
   const preload = useCallback(async (soundIds: string[]): Promise<void> => {
@@ -54,7 +53,9 @@ export function useAudioBufferCache() {
     const idx = variantIndex === -1
       ? Math.floor(Math.random() * variants.length)
       : variantIndex
-    return cacheRef.current.get(`${soundId}#${idx}`)
+    const hash = variants[idx]?.hash
+    if (!hash) return undefined
+    return cacheRef.current.get(hash)
   }, [soundMap])
 
   const clear = useCallback(() => {

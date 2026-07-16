@@ -31,13 +31,18 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   const pausedRef = useRef(false)
   const [isPaused, setIsPaused] = useState(false)
 
+  // cache は soundMap 更新時などに identity が変わりうるため ref 経由で参照し、
+  // tick/scheduleMarker などのコールバックが不要に再生成されないようにする (M12)
+  const cacheRef = useRef(cache)
+  useEffect(() => { cacheRef.current = cache }, [cache])
+
   // バッファが未ロードでスケジュールできなかった場合は false を返す。
   // 呼び出し側は true が返った時だけ scheduledIdsRef に登録することで、
   // 未ロードのマーカーを次フレーム以降も再試行できるようにする (C2)
   const scheduleMarker = useCallback((m: Marker): boolean => {
-    const buf = cache.getBuffer(m.soundId, m.variantIndex)
+    const buf = cacheRef.current.getBuffer(m.soundId, m.variantIndex)
     if (!buf) return false
-    const ctx = cache.getAudioContext()
+    const ctx = cacheRef.current.getAudioContext()
     const src = ctx.createBufferSource()
     src.buffer = buf
     src.playbackRate.value = m.pitch
@@ -53,7 +58,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
       if (idx >= 0) activeSourcesRef.current.splice(idx, 1)
     }
     return true
-  }, [cache])
+  }, [])
 
   const stopAllSources = useCallback(() => {
     for (const s of activeSourcesRef.current) {
@@ -79,7 +84,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   }, [stopAllSources])
 
   const tick = useCallback(() => {
-    const ctx = cache.getAudioContext()
+    const ctx = cacheRef.current.getAudioContext()
     const elapsedSec = ctx.currentTime - playStartAudioTimeRef.current
     const cur = startTickRef.current + elapsedSec / TICK_SEC
     const len = lengthTicksRef.current
@@ -105,12 +110,12 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     }
 
     rafRef.current = requestAnimationFrame(tick)
-  }, [scheduleMarker, cache, stopInternal])
+  }, [scheduleMarker, stopInternal])
 
   const play = useCallback(() => {
     if (playingRef.current) return
     playingRef.current = true
-    const ctx = cache.getAudioContext()
+    const ctx = cacheRef.current.getAudioContext()
     // ユーザー操作起点の resume（AudioContext は最初は suspended）
     ctx.resume().catch(() => {})
     // 末尾に到達済みなら 0 に巻き戻してから再生
@@ -121,7 +126,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     scheduledIdsRef.current.clear()
     setIsPlaying(true)
     rafRef.current = requestAnimationFrame(tick)
-  }, [cache, currentTick, tick])
+  }, [currentTick, tick])
 
   const stop = useCallback(() => {
     stopInternal()
@@ -134,7 +139,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
   const pause = useCallback(() => {
     if (!playingRef.current || pausedRef.current) return
     pausedRef.current = true
-    const ctx = cache.getAudioContext()
+    const ctx = cacheRef.current.getAudioContext()
     ctx.suspend().catch(() => {})
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
@@ -142,17 +147,17 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     }
     setIsPlaying(false)
     setIsPaused(true)
-  }, [cache])
+  }, [])
 
   const resume = useCallback(() => {
     if (!pausedRef.current) return
     pausedRef.current = false
-    const ctx = cache.getAudioContext()
+    const ctx = cacheRef.current.getAudioContext()
     ctx.resume().catch(() => {})
     setIsPlaying(true)
     setIsPaused(false)
     rafRef.current = requestAnimationFrame(tick)
-  }, [cache, tick])
+  }, [tick])
 
   const seek = useCallback((newTick: number) => {
     const wasPlaying = playingRef.current
@@ -161,7 +166,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
     setCurrentTick(clamped)
     if (wasPlaying) {
       playingRef.current = true
-      const ctx = cache.getAudioContext()
+      const ctx = cacheRef.current.getAudioContext()
       // pause 中に AudioContext が suspend されている可能性があるため明示的に resume する
       ctx.resume().catch(() => {})
       playStartAudioTimeRef.current = ctx.currentTime
@@ -170,7 +175,7 @@ export function useTimelinePlayback({ markers, lengthTicks, cache }: Params) {
       setIsPlaying(true)
       rafRef.current = requestAnimationFrame(tick)
     }
-  }, [stopInternal, cache, tick])
+  }, [stopInternal, tick])
 
   // アンマウント時掃除
   useEffect(() => {

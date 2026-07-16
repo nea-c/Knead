@@ -27,6 +27,7 @@ export const TimelineMarker: React.FC<Props> = ({ marker, pxPerTick, selected, o
       border="2px solid"
       borderColor={selected ? 'blue.200' : 'gray.500'}
       cursor="grab"
+      _active={{ cursor: 'grabbing' }}
       onPointerDown={onPointerDown}
       title={`t=${marker.tick} ${marker.soundId || '(no sound)'}`}
     >

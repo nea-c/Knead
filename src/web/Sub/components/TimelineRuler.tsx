@@ -22,6 +22,8 @@ export const TimelineRuler: React.FC<Props> = ({ lengthTicks, pxPerTick, onSeek 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!onSeek) return
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    // rect.left はスクロール位置を反映済みのビューポート座標なので、
+    // 水平スクロールしていても e.clientX - rect.left で要素内の正しいオフセットになる (M14)
     const x = e.clientX - rect.left
     onSeek(pxToTick(x, pxPerTick))
   }, [onSeek, pxPerTick])
