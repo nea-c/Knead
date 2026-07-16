@@ -95,6 +95,10 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             min={0} max={1} step={0.01}
             onChange={v => onChange({ volume: v })}
             w="200px"
+            thumbSize={3}
+            thumbColor="primary"
+            trackColor="gray.600"
+            filledTrackColor="primary"
             focusThumbOnChange={false}
           />
         </Box>
@@ -110,6 +114,10 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             min={0.5} max={2.0} step={0.01}
             onChange={v => onChange({ pitch: v })}
             w="200px"
+            thumbSize={3}
+            thumbColor="primary"
+            trackColor="gray.600"
+            filledTrackColor="primary"
             focusThumbOnChange={false}
           />
         </Box>
