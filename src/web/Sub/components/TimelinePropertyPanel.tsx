@@ -1,5 +1,5 @@
 import React from 'react'
-import { Box, Flex, NumberInput, Select, SelectItem, Slider, Text } from '@yamada-ui/react'
+import { Box, Flex, NumberInput, Select, SelectItem, Text } from '@yamada-ui/react'
 import type { Marker } from '../types/timeline'
 import { AudioSelectDropdown } from './AudioSelectDropdown'
 
@@ -8,14 +8,14 @@ interface Props {
   selectionCount: number
   lengthTicks: number
   soundIdList: string[]
-  variantCount: number
+  variants: { path: string, hash: string }[]
   onChange: (patch: Partial<Marker>) => void
 }
 
-const PANEL_HEIGHT = 180
+const PANEL_HEIGHT = 200
 
 export const TimelinePropertyPanel: React.FC<Props> = React.memo(function TimelinePropertyPanel({
-  marker, selectionCount, lengthTicks, soundIdList, variantCount, onChange,
+  marker, selectionCount, lengthTicks, soundIdList, variants, onChange,
 }) {
   if (selectionCount === 0) {
     return (
@@ -39,18 +39,18 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
   }
 
   const variantItems: SelectItem[] = [
-    { label: '-1: ランダム', value: '-1' },
-    ...Array.from({ length: variantCount }, (_, i) => ({ label: `${i}`, value: `${i}` })),
+    { label: 'ランダム', value: '-1' },
+    ...variants.map((v, i) => ({ label: v.path, value: `${i}` })),
   ]
   const maxTick = Math.max(0, lengthTicks - 1)
 
   return (
     <Box
       h={`${PANEL_HEIGHT}px`} bg="gray.900" borderTop="1px solid" borderColor="gray.700"
-      p="4" overflow="auto"
+      p="4"
     >
       <Flex gap="6" wrap="wrap" align="flex-start">
-        <Box minW="120px">
+        <Box w="120px">
           <Text fontSize="sm" color="gray.400" mb="1">Tick</Text>
           <NumberInput
             value={marker.tick}
@@ -72,53 +72,45 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
           />
         </Box>
 
-        <Box minW="140px">
+        <Box w="320px">
           <Text fontSize="sm" color="gray.400" mb="1">Variant</Text>
           <Select
             value={String(marker.variantIndex)}
             items={variantItems}
             onChange={v => onChange({ variantIndex: parseInt(v, 10) })}
-            disabled={variantCount === 0}
-            w="140px"
+            disabled={variants.length === 0}
+            w="320px"
             placeholderInOptions={false}
           />
         </Box>
 
-        <Box minW="200px">
+        <Box w="220px">
           <Text fontSize="sm" color="gray.400" mb="1">
             Volume:
             {' '}
             {marker.volume.toFixed(2)}
           </Text>
-          <Slider
-            value={marker.volume}
+          <input
+            type="range"
             min={0} max={1} step={0.01}
-            onChange={v => onChange({ volume: v })}
-            w="200px"
-            thumbSize={3}
-            thumbColor="primary"
-            trackColor="gray.600"
-            filledTrackColor="primary"
-            focusThumbOnChange={false}
+            value={marker.volume}
+            onChange={e => onChange({ volume: parseFloat(e.target.value) })}
+            style={{ width: '220px', accentColor: '#3b82f6' }}
           />
         </Box>
 
-        <Box minW="200px">
+        <Box w="220px">
           <Text fontSize="sm" color="gray.400" mb="1">
             Pitch:
             {' '}
             {marker.pitch.toFixed(2)}
           </Text>
-          <Slider
-            value={marker.pitch}
+          <input
+            type="range"
             min={0.5} max={2.0} step={0.01}
-            onChange={v => onChange({ pitch: v })}
-            w="200px"
-            thumbSize={3}
-            thumbColor="primary"
-            trackColor="gray.600"
-            filledTrackColor="primary"
-            focusThumbOnChange={false}
+            value={marker.pitch}
+            onChange={e => onChange({ pitch: parseFloat(e.target.value) })}
+            style={{ width: '220px', accentColor: '#3b82f6' }}
           />
         </Box>
       </Flex>

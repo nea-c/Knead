@@ -198,7 +198,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   const singleSelected = singleSelectedId
     ? timeline.state.markers.find(m => m.id === singleSelectedId) ?? null
     : null
-  const variantCount = singleSelected ? (soundMap[singleSelected.soundId]?.length ?? 0) : 0
+  const variants = singleSelected ? (soundMap[singleSelected.soundId] ?? []) : []
   const handlePanelChange = useCallback((patch: Partial<Marker>) => {
     if (singleSelectedId) timeline.updateMarker(singleSelectedId, patch)
   }, [singleSelectedId, timeline])
@@ -255,7 +255,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
         selectionCount={selectedIds.size}
         lengthTicks={timeline.state.lengthTicks}
         soundIdList={soundIdList}
-        variantCount={variantCount}
+        variants={variants}
         onChange={handlePanelChange}
       />
     </Box>
