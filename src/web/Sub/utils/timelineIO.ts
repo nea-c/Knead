@@ -1,5 +1,6 @@
 import {
   SINGLE_SHOT_CURVE_PREVIEW_TICKS,
+  TIMELINE_MARKER_SIZE,
   type Keyframe,
   type Marker,
   type TimelineFile,
@@ -99,6 +100,17 @@ function validateMarker(x: unknown, lengthTicks: number): string | null {
     return 'retriggerInterval が正の整数ではありません'
   }
 
+  if (
+    x.trackY !== undefined
+    && (
+      typeof x.trackY !== 'number'
+      || !Number.isFinite(x.trackY)
+      || x.trackY < TIMELINE_MARKER_SIZE / 2
+    )
+  ) {
+    return 'trackY が不正です'
+  }
+
   const duration = typeof x.duration === 'number' && x.duration > 0
     ? x.duration
     : SINGLE_SHOT_CURVE_PREVIEW_TICKS
@@ -164,7 +176,7 @@ export function _selfCheckTimelineIO(): void {
     lengthTicks: 100,
     markers: [
       { id: 'a', tick: 10, soundId: 'block.note_block.pling', variantIndex: -1, volume: 1, pitch: 1 },
-      { id: 'b', tick: 50, soundId: 'ambient.cave', variantIndex: 0, volume: 0.5, pitch: 1.5, duration: 20, retriggerInterval: 5 },
+      { id: 'b', tick: 50, soundId: 'ambient.cave', variantIndex: 0, volume: 0.5, pitch: 1.5, duration: 20, retriggerInterval: 5, trackY: 24 },
     ],
   }
   const json = serialize(state)
@@ -172,6 +184,7 @@ export function _selfCheckTimelineIO(): void {
   if (!result.ok) throw new Error(`往復パース失敗: ${result.error}`)
   if (result.state.markers.length !== 2) throw new Error(`marker 数不一致`)
   if (result.state.markers[1].duration !== 20) throw new Error(`duration 消失`)
+  if (result.state.markers[1].trackY !== 24) throw new Error(`trackY 消失`)
 
   // format 違い拒否
   const badFormat = parse(JSON.stringify({ format: 'other', version: 1, targetVersion: '', lengthTicks: 1, markers: [] }))

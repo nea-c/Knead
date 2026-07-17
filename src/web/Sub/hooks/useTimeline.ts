@@ -123,6 +123,7 @@ export function useTimeline(initial?: TimelineState) {
             retriggerInterval: partial.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL,
             volumeCurve: partial.volumeCurve,
             pitchCurve: partial.pitchCurve,
+            trackY: partial.trackY,
           })
         },
       })
@@ -148,6 +149,7 @@ export function useTimeline(initial?: TimelineState) {
             retriggerInterval: p.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL,
             volumeCurve: p.volumeCurve,
             pitchCurve: p.pitchCurve,
+            trackY: p.trackY,
           })
         })
       },
@@ -197,6 +199,22 @@ export function useTimeline(initial?: TimelineState) {
           const next = deltas.get(m.id)
           if (next === undefined) continue
           m.tick = Math.min(maxTick, Math.max(0, Math.trunc(next)))
+        }
+      },
+    })
+  }, [])
+
+  const moveMarkersOnTrack = useCallback((positions: Map<string, { tick: Tick, trackY?: number }>) => {
+    if (positions.size === 0) return
+    dispatch({
+      type: 'mutate',
+      recipe: (draft) => {
+        const maxTick = Math.max(0, draft.lengthTicks - 1)
+        for (const m of draft.markers) {
+          const next = positions.get(m.id)
+          if (next === undefined) continue
+          m.tick = Math.min(maxTick, Math.max(0, Math.trunc(next.tick)))
+          m.trackY = next.trackY
         }
       },
     })
@@ -280,6 +298,7 @@ export function useTimeline(initial?: TimelineState) {
     removeMarkers,
     moveMarker,
     moveMarkers,
+    moveMarkersOnTrack,
     updateMarker,
     updateMarkers,
     setLength,
@@ -292,7 +311,7 @@ export function useTimeline(initial?: TimelineState) {
   }), [
     h.current, h.past.length, h.future.length,
     addMarker, addMarkers, removeMarker, removeMarkers,
-    moveMarker, moveMarkers, updateMarker, updateMarkers,
+    moveMarker, moveMarkers, moveMarkersOnTrack, updateMarker, updateMarkers,
     setLength, setTargetVersion, replaceAll,
     beginTransaction, commitTransaction, undo, redo,
   ])

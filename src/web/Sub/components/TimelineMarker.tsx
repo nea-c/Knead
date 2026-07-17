@@ -1,6 +1,6 @@
 import React from 'react'
 import { Box, Text } from '@yamada-ui/react'
-import type { Marker } from '../types/timeline'
+import { TIMELINE_MARKER_SIZE, type Marker } from '../types/timeline'
 import { tickToPx } from '../utils/tickPixel'
 
 export type ResizeEdge = 'start' | 'end'
@@ -11,15 +11,14 @@ interface Props {
   pxPerTick: number
   selected: boolean
   resizeCursor: boolean
+  topPx: number
   onPointerDown: (edge: ResizeEdge | null, e: React.PointerEvent) => void
 }
 
-const MARKER_SIZE = 16
-
 export const TimelineMarker: React.FC<Props> = ({
-  marker, invalidSound, pxPerTick, selected, resizeCursor, onPointerDown,
+  marker, invalidSound, pxPerTick, selected, resizeCursor, topPx, onPointerDown,
 }) => {
-  const left = tickToPx(marker.tick, pxPerTick) - MARKER_SIZE / 2
+  const left = tickToPx(marker.tick, pxPerTick) - TIMELINE_MARKER_SIZE / 2
   const durationPx = marker.duration && marker.duration > 0
     ? tickToPx(marker.duration, pxPerTick)
     : 0
@@ -32,8 +31,8 @@ export const TimelineMarker: React.FC<Props> = ({
       position="absolute"
       left={`${offset}px`}
       top="0"
-      w={`${MARKER_SIZE}px`}
-      h={`${MARKER_SIZE}px`}
+      w={`${TIMELINE_MARKER_SIZE}px`}
+      h={`${TIMELINE_MARKER_SIZE}px`}
       cursor={resizeCursor ? 'ew-resize' : 'grab'}
       _active={{ cursor: resizeCursor ? 'ew-resize' : 'grabbing' }}
       onPointerDown={e => onPointerDown(edge, e)}
@@ -55,10 +54,10 @@ export const TimelineMarker: React.FC<Props> = ({
     <Box
       position="absolute"
       left={`${left}px`}
-      top="50%"
+      top={`${topPx}px`}
       transform="translateY(-50%)"
-      w={`${MARKER_SIZE + durationPx}px`}
-      h={`${MARKER_SIZE}px`}
+      w={`${TIMELINE_MARKER_SIZE + durationPx}px`}
+      h={`${TIMELINE_MARKER_SIZE}px`}
       cursor="grab"
       _active={{ cursor: 'grabbing' }}
       onPointerDown={e => onPointerDown(null, e)}
@@ -67,7 +66,7 @@ export const TimelineMarker: React.FC<Props> = ({
       {durationPx > 0 && (
         <Box
           position="absolute"
-          left={`${MARKER_SIZE / 2}px`}
+          left={`${TIMELINE_MARKER_SIZE / 2}px`}
           top="50%"
           transform="translateY(-50%)"
           w={`${durationPx}px`}

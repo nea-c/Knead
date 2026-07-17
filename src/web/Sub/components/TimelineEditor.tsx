@@ -1,7 +1,7 @@
 // src/web/Sub/components/TimelineEditor.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box } from '@yamada-ui/react'
-import type { Marker } from '../types/timeline'
+import { getTimelineTrackHeight, type Marker } from '../types/timeline'
 import { useTimeline } from '../hooks/useTimeline'
 import { useAudioBufferCache } from '../hooks/useAudioBufferCache'
 import { useTimelinePlayback } from '../hooks/useTimelinePlayback'
@@ -146,8 +146,8 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     timeline.beginTransaction()
   }, [timeline])
 
-  const handleMoveMarkers = useCallback((deltas: Map<string, number>) => {
-    timeline.moveMarkers(deltas)
+  const handleMoveMarkers = useCallback((positions: Map<string, { tick: number, trackY?: number }>) => {
+    timeline.moveMarkersOnTrack(positions)
   }, [timeline])
 
   const handleResizeMarker = useCallback((id: string, tick: number, duration: number) => {
@@ -376,8 +376,9 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     timeline.moveMarkers(deltas)
   }, [selectedIds, timeline])
 
+  const trackHeight = getTimelineTrackHeight(timeline.state.markers)
   const contentWidth = tickToPx(timeline.state.lengthTicks, pxPerTick)
-  const trackAreaHeight = 24 + 64
+  const trackAreaHeight = 24 + trackHeight
 
   return (
     <Box display="flex" flexDir="column" h="100vh" bg="gray.950">
@@ -417,6 +418,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
           />
           <TimelineTrack
             markers={sortedMarkers}
+            trackHeight={trackHeight}
             validSoundIds={validSoundIds}
             lengthTicks={timeline.state.lengthTicks}
             pxPerTick={pxPerTick}
