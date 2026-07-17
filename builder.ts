@@ -25,7 +25,7 @@ const config: Configuration = {
     identity: null,
   },
   linux: {
-    icon: 'build/icon.icns',
+    icon: 'build/icon.png',
     target: ['AppImage'],
     category: 'Development',
   },
