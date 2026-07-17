@@ -10,7 +10,7 @@ import { AudioSelectDropdown } from './AudioSelectDropdown'
 import { CurveEditor } from './CurveEditor'
 
 const PITCH_SNAP_VALUES = Array.from({ length: 25 }, (_, index) => 2 ** ((index - 12) / 12))
-const PITCH_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const PITCH_NOTE_NAMES = ['F#', 'G', 'G#', 'A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F']
 const PITCH_SNAP_LABELS = Array.from({ length: 25 }, (_, index) => PITCH_NOTE_NAMES[index % 12])
 
 interface Props {
