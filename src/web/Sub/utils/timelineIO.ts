@@ -1,4 +1,10 @@
-import type { Keyframe, Marker, TimelineFile, TimelineState } from '../types/timeline'
+import {
+  SINGLE_SHOT_CURVE_PREVIEW_TICKS,
+  type Keyframe,
+  type Marker,
+  type TimelineFile,
+  type TimelineState,
+} from '../types/timeline'
 
 export function serialize(state: TimelineState): string {
   const file: TimelineFile = {
@@ -93,10 +99,9 @@ function validateMarker(x: unknown, lengthTicks: number): string | null {
     return 'retriggerInterval が正の整数ではありません'
   }
 
-  const duration = typeof x.duration === 'number' ? x.duration : 0
-  if ((x.volumeCurve !== undefined || x.pitchCurve !== undefined) && duration <= 0) {
-    return '単発マーカーにカーブは設定できません'
-  }
+  const duration = typeof x.duration === 'number' && x.duration > 0
+    ? x.duration
+    : SINGLE_SHOT_CURVE_PREVIEW_TICKS
   if (x.volumeCurve !== undefined) {
     const error = validateCurve(x.volumeCurve, duration, 0, 1)
     if (error) return 'volumeCurve: ' + error

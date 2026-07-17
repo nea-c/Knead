@@ -150,6 +150,9 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     timeline.moveMarkers(deltas)
   }, [timeline])
 
+  const handleResizeMarker = useCallback((id: string, tick: number, duration: number) => {
+    timeline.updateMarker(id, { tick, duration })
+  }, [timeline])
   const handleEndMove = useCallback(() => {
     timeline.commitTransaction()
   }, [timeline])
@@ -423,6 +426,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
             onRectangleSelect={handleRectangleSelect}
             onBeginMove={handleBeginMove}
             onMoveMarkers={handleMoveMarkers}
+            onResizeMarker={handleResizeMarker}
             onEndMove={handleEndMove}
             onAddMarker={handleAddAtTick}
           />

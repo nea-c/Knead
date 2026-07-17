@@ -1,10 +1,33 @@
 import { useCallback, useMemo, useReducer } from 'react'
 import { produce, Draft } from 'immer'
 import { v4 as uuidv4 } from 'uuid'
-import type { Marker, Tick, TimelineState } from '../types/timeline'
-import { DEFAULT_RETRIGGER_INTERVAL, DEFAULT_TIMELINE_LENGTH_TICKS } from '../types/timeline'
+import type { Curve, Marker, Tick, TimelineState } from '../types/timeline'
+import {
+  DEFAULT_RETRIGGER_INTERVAL,
+  DEFAULT_TIMELINE_LENGTH_TICKS,
+  SINGLE_SHOT_CURVE_PREVIEW_TICKS,
+} from '../types/timeline'
 
 const MAX_HISTORY = 100
+
+function resizeCurve(curve: Draft<Curve> | undefined, oldSpan: number, newSpan: number): Curve | undefined {
+  if (!curve) return undefined
+  const byTick = new Map<number, Curve['keyframes'][number]>()
+  for (const keyframe of curve.keyframes) {
+    const tick = Math.max(0, Math.min(newSpan, Math.round(keyframe.tick / oldSpan * newSpan)))
+    byTick.set(tick, { ...keyframe, tick })
+  }
+  return { keyframes: Array.from(byTick.values()).sort((a, b) => a.tick - b.tick) }
+}
+
+function resizeMarkerCurves(marker: Draft<Marker>, duration: number): void {
+  const oldSpan = marker.duration && marker.duration > 0
+    ? marker.duration
+    : SINGLE_SHOT_CURVE_PREVIEW_TICKS
+  const newSpan = duration > 0 ? duration : SINGLE_SHOT_CURVE_PREVIEW_TICKS
+  marker.volumeCurve = resizeCurve(marker.volumeCurve, oldSpan, newSpan)
+  marker.pitchCurve = resizeCurve(marker.pitchCurve, oldSpan, newSpan)
+}
 
 const defaultState = (): TimelineState => ({
   targetVersion: '',
@@ -185,6 +208,9 @@ export function useTimeline(initial?: TimelineState) {
       recipe: (draft) => {
         const m = draft.markers.find(m => m.id === id)
         if (!m) return
+        if (patch.duration !== undefined && patch.duration !== m.duration) {
+          resizeMarkerCurves(m, patch.duration)
+        }
         Object.assign(m, patch)
         if (patch.tick !== undefined) {
           const maxTick = Math.max(0, draft.lengthTicks - 1)
@@ -203,6 +229,9 @@ export function useTimeline(initial?: TimelineState) {
         const maxTick = Math.max(0, draft.lengthTicks - 1)
         for (const m of draft.markers) {
           if (!idSet.has(m.id)) continue
+          if (patch.duration !== undefined && patch.duration !== m.duration) {
+            resizeMarkerCurves(m, patch.duration)
+          }
           Object.assign(m, patch)
           if (patch.tick !== undefined) {
             m.tick = Math.min(maxTick, Math.max(0, Math.trunc(patch.tick)))

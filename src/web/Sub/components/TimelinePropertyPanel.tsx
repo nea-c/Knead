@@ -1,8 +1,17 @@
 import React, { useMemo, useState } from 'react'
 import { Box, Button, Flex, NumberInput, Select, SelectItem, Slider, Text } from '@yamada-ui/react'
-import { DEFAULT_RETRIGGER_INTERVAL, type Curve, type Marker } from '../types/timeline'
+import {
+  DEFAULT_RETRIGGER_INTERVAL,
+  SINGLE_SHOT_CURVE_PREVIEW_TICKS,
+  type Curve,
+  type Marker,
+} from '../types/timeline'
 import { AudioSelectDropdown } from './AudioSelectDropdown'
 import { CurveEditor } from './CurveEditor'
+
+const PITCH_SNAP_VALUES = Array.from({ length: 25 }, (_, index) => 2 ** ((index - 12) / 12))
+const PITCH_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const PITCH_SNAP_LABELS = Array.from({ length: 25 }, (_, index) => PITCH_NOTE_NAMES[index % 12])
 
 interface Props {
   marker: Marker | null
@@ -63,7 +72,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
   ]
   const curveDuration = marker?.duration && marker.duration > 0
     ? marker.duration
-    : Math.max(20, ...curveKeyframes.map(keyframe => keyframe.tick))
+    : Math.max(SINGLE_SHOT_CURVE_PREVIEW_TICKS, ...curveKeyframes.map(keyframe => keyframe.tick))
 
   const soundIdCommon = commonValue(selectedMarkers, m => m.soundId)
   const variantCommon = commonValue(selectedMarkers, m => m.variantIndex)
@@ -249,6 +258,10 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             valueMin={0.5} valueMax={2.0}
             fallback={marker.pitch}
             curve={marker.pitchCurve}
+            referenceValue={1}
+            snapValues={PITCH_SNAP_VALUES}
+            snapValueLabels={PITCH_SNAP_LABELS}
+            valueTooltip
             onChange={(next: Curve | undefined) => onChange({ pitchCurve: next })}
             onBeginEdit={onBeginEdit}
             onEndEdit={onEndEdit}

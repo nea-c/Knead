@@ -16,6 +16,10 @@ interface Props {
   onEndEdit: () => void
   width?: number
   height?: number
+  referenceValue?: number
+  snapValues?: number[]
+  valueTooltip?: boolean
+  snapValueLabels?: string[]
 }
 
 const PAD = { l: 32, r: 8, t: 8, b: 20 }
@@ -32,17 +36,31 @@ interface DragState {
   viewValueSpan: number
   origHandleL?: { dt: number, dv: number }
   origHandleR?: { dt: number, dv: number }
+  lockTick?: boolean
 }
 export const CurveEditor: React.FC<Props> = ({
   label, duration, valueMin, valueMax, fallback, curve, onChange, onBeginEdit, onEndEdit,
-  width = 400, height = 140,
+  width = 400, height = 140, referenceValue, snapValues, valueTooltip = false, snapValueLabels,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null)
+  const [snapEnabled, setSnapEnabled] = useState(false)
+  const [dragTooltip, setDragTooltip] = useState<{ x: number, y: number, value: number } | null>(null)
 
-  const kfs: Keyframe[] = useMemo(() => curve?.keyframes ?? [], [curve])
+  const kfs: Keyframe[] = useMemo(() => {
+    const keyframes = curve?.keyframes ?? []
+    const withEndpoints = [...keyframes]
+    if (!withEndpoints.some(kf => kf.tick === 0)) {
+      withEndpoints.push({ tick: 0, value: fallback, interpolation: 'linear' })
+    }
+    if (!withEndpoints.some(kf => kf.tick === duration)) {
+      withEndpoints.push({ tick: duration, value: fallback, interpolation: 'linear' })
+    }
+    return withEndpoints.sort((a, b) => a.tick - b.tick)
+  }, [curve, duration, fallback])
+  const effectiveCurve = useMemo(() => ({ keyframes: kfs }), [kfs])
 
   const plotW = width - PAD.l - PAD.r
   const plotH = height - PAD.t - PAD.b
@@ -65,27 +83,41 @@ export const CurveEditor: React.FC<Props> = ({
     const tick = viewport.tickMin + ((x - PAD.l) / plotW) * viewTickSpan
     return Math.round(Math.max(0, Math.min(duration, tick)))
   }, [viewport.tickMin, viewTickSpan, duration, plotW])
+  const snapValue = useCallback((value: number) => {
+    const clamped = Math.max(valueMin, Math.min(valueMax, value))
+    if (!snapEnabled || !snapValues?.length) return clamped
+    return snapValues.reduce((nearest, candidate) => (
+      Math.abs(candidate - clamped) < Math.abs(nearest - clamped) ? candidate : nearest
+    ))
+  }, [valueMin, valueMax, snapEnabled, snapValues])
+  const dragTooltipText = useMemo(() => {
+    if (!dragTooltip) return ''
+    const numeric = dragTooltip.value.toFixed(3)
+    if (!snapEnabled || !snapValues?.length || !snapValueLabels?.length) return numeric
+    const snapIndex = snapValues.reduce((nearestIndex, candidate, index) => (
+      Math.abs(candidate - dragTooltip.value) < Math.abs(snapValues[nearestIndex] - dragTooltip.value)
+        ? index
+        : nearestIndex
+    ), 0)
+    return numeric + ' (' + snapValueLabels[snapIndex] + ')'
+  }, [dragTooltip, snapEnabled, snapValues, snapValueLabels])
   const yToValue = useCallback((y: number) => {
     const norm = 1 - (y - PAD.t) / plotH
     const value = viewport.valueMin + norm * viewValueSpan
-    return Math.max(valueMin, Math.min(valueMax, value))
-  }, [viewport.valueMin, viewValueSpan, valueMin, valueMax, plotH])
+    return snapValue(value)
+  }, [viewport.valueMin, viewValueSpan, plotH, snapValue])
 
   const pathD = useMemo(() => {
-    if (kfs.length === 0) {
-      const y = valueToY(fallback)
-      return `M ${tickToX(0)} ${y} L ${tickToX(duration)} ${y}`
-    }
     const steps = 60
     const parts: string[] = []
     for (let i = 0; i <= steps; i++) {
       const t = (i / steps) * duration
-      const v = sampleCurve(curve, t, fallback)
+      const v = sampleCurve(effectiveCurve, t, fallback)
       const cmd = i === 0 ? 'M' : 'L'
       parts.push(`${cmd} ${tickToX(t).toFixed(2)} ${valueToY(v).toFixed(2)}`)
     }
     return parts.join(' ')
-  }, [kfs, curve, fallback, duration, tickToX, valueToY])
+  }, [effectiveCurve, fallback, duration, tickToX, valueToY])
 
   const commitCurve = useCallback((newKfs: Keyframe[]): boolean => {
     if (newKfs.length === 0) {
@@ -163,11 +195,13 @@ export const CurveEditor: React.FC<Props> = ({
       startX: e.clientX,
       startY: e.clientY,
       origins,
+      lockTick: Array.from(origins.values()).some(origin => origin.tick === 0 || origin.tick === duration),
       viewTickSpan,
       viewValueSpan,
     })
+    if (valueTooltip) setDragTooltip({ x: e.clientX, y: e.clientY, value: kfs[i].value })
     ;(e.currentTarget as Element).setPointerCapture?.(e.pointerId)
-  }, [selected, kfs, onBeginEdit, viewTickSpan, viewValueSpan])
+  }, [selected, kfs, onBeginEdit, viewTickSpan, viewValueSpan, duration, valueTooltip])
   const handleKfContextMenu = useCallback((i: number) => (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -201,7 +235,7 @@ export const CurveEditor: React.FC<Props> = ({
     if (!d || !svgRef.current) return
     const dxPx = e.clientX - d.startX
     const dyPx = e.clientY - d.startY
-    const rawTickDelta = Math.round(dxPx / plotW * d.viewTickSpan)
+    const rawTickDelta = d.lockTick ? 0 : Math.round(dxPx / plotW * d.viewTickSpan)
     const rawValueDelta = -dyPx / plotH * d.viewValueSpan
 
     if (d.type === 'kf') {
@@ -215,9 +249,13 @@ export const CurveEditor: React.FC<Props> = ({
       const newKfs = kfs.map((kf, i) => {
         const origin = d.origins.get(i)
         return origin
-          ? { ...kf, tick: origin.tick + tickDelta, value: origin.value + valueDelta }
+          ? { ...kf, tick: origin.tick + tickDelta, value: snapValue(origin.value + valueDelta) }
           : kf
       })
+      const draggedKeyframe = newKfs[d.index]
+      if (valueTooltip && draggedKeyframe) {
+        setDragTooltip({ x: e.clientX, y: e.clientY, value: draggedKeyframe.value })
+      }
       const ticks = new Set(newKfs.map(kf => kf.tick))
       if (ticks.size !== newKfs.length) return
       onChange({ keyframes: newKfs })
@@ -244,7 +282,9 @@ export const CurveEditor: React.FC<Props> = ({
       }
     })
     onChange({ keyframes: newKfs })
-  }, [dragState, kfs, plotW, plotH, duration, valueMax, valueMin, onChange])
+  }, [
+    dragState, kfs, plotW, plotH, duration, valueMax, valueMin, onChange, snapValue, valueTooltip,
+  ])
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragState) return
     if (dragState.type === 'kf') {
@@ -263,6 +303,7 @@ export const CurveEditor: React.FC<Props> = ({
       }
     }
     setDragState(null)
+    setDragTooltip(null)
     onEndEdit()
     try {
       (e.currentTarget as Element).releasePointerCapture?.(e.pointerId)
@@ -323,7 +364,15 @@ export const CurveEditor: React.FC<Props> = ({
 
   return (
     <Box>
-      <Text fontSize="sm" color="gray.400" mb="1">{label}</Text>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb="1">
+        <Text fontSize="sm" color="gray.400">{label}</Text>
+        {snapValues && (
+          <Button size="xs" variant={snapEnabled ? 'solid' : 'outline'} onClick={() => setSnapEnabled(enabled => !enabled)}>
+            <span>音階スナップ:</span>
+            <span>{snapEnabled ? 'ON' : 'OFF'}</span>
+          </Button>
+        )}
+      </Box>
       <svg
         ref={svgRef}
         tabIndex={0}
@@ -340,6 +389,12 @@ export const CurveEditor: React.FC<Props> = ({
         {/* グリッド */}
         <line x1={tickToX(0)} y1={PAD.t} x2={tickToX(0)} y2={PAD.t + plotH} stroke="#374151" />
         <line x1={PAD.l} y1={valueToY(valueMin)} x2={PAD.l + plotW} y2={valueToY(valueMin)} stroke="#374151" />
+        {referenceValue !== undefined && referenceValue >= viewport.valueMin && referenceValue <= viewport.valueMax && (
+          <>
+            <line x1={PAD.l} y1={valueToY(referenceValue)} x2={PAD.l + plotW} y2={valueToY(referenceValue)} stroke="#6b7280" strokeDasharray="4 3" />
+            <text x={PAD.l - 4} y={valueToY(referenceValue) + 3} textAnchor="end" fill="#d1d5db" fontSize="10">{referenceValue.toFixed(2)}</text>
+          </>
+        )}
         {/* Y 軸ラベル */}
         <text x={PAD.l - 4} y={PAD.t + 4} textAnchor="end" fill="#9ca3af" fontSize="10">{viewport.valueMax.toFixed(2)}</text>
         <text x={PAD.l - 4} y={PAD.t + plotH} textAnchor="end" fill="#9ca3af" fontSize="10">{viewport.valueMin.toFixed(2)}</text>
@@ -430,6 +485,24 @@ export const CurveEditor: React.FC<Props> = ({
           <Button size="xs" variant="ghost" w="full" justifyContent="flex-start" onClick={() => handleApplyPreset('ease-in-out')}>
             Ease InOut
           </Button>
+        </Box>
+      )}
+      {dragTooltip && (
+        <Box
+          position="fixed"
+          left={`${dragTooltip.x + 12}px`}
+          top={`${dragTooltip.y + 12}px`}
+          zIndex={2100}
+          px="2"
+          py="1"
+          bg="gray.800"
+          border="1px solid"
+          borderColor="gray.600"
+          borderRadius="sm"
+          fontSize="xs"
+          pointerEvents="none"
+        >
+          {dragTooltipText}
         </Box>
       )}
       <Text fontSize="xs" color="gray.500" mt="1">
