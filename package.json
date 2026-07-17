@@ -2,12 +2,17 @@
   "name": "knead",
   "version": "0.3.5",
   "description": "Playsound generator for Minecraft",
+  "author": "NeAc",
   "main": "dist/main.js",
   "scripts": {
     "dev": "rimraf dist && run-p dev:webpack dev:electron",
     "dev:webpack": "cross-env NODE_ENV=\"development\" webpack --progress",
     "dev:electron": "wait-on ./dist/index.html ./dist/main.js && electronmon .",
     "build": "cross-env NODE_ENV=\"production\" webpack --progress",
+    "package": "npm run build && electron-builder --config builder.ts",
+    "package:win": "npm run build && electron-builder --config builder.ts --win",
+    "package:mac": "npm run build && electron-builder --config builder.ts --mac",
+    "package:linux": "npm run build && electron-builder --config builder.ts --linux",
     "tcm": "tcm src",
     "lint": "eslint src/** --no-error-on-unmatched-pattern --fix",
     "selfcheck": "npx ts-node -e \"require('./src/web/Sub/utils/tickPixel')._selfCheckTickPixel(); require('./src/web/Sub/utils/timelineIO')._selfCheckTimelineIO(); require('./src/web/Sub/utils/curvePresets')._selfCheckCurvePresets()\""
