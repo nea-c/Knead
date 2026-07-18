@@ -41,6 +41,7 @@
         "scope": {
           "requireLiteralLeadingDot": false,
           "allow": [
+            "$CONFIG/.minecraft/assets/objects/**/*",
             "$APPDATA/.minecraft/assets/objects/**/*",
             "$HOME/.minecraft/assets/objects/**/*",
             "$HOME/Library/Application Support/minecraft/assets/objects/**/*"

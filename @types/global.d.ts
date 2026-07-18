@@ -8,9 +8,16 @@ declare global {
 }
 
 export interface Sandbox {
-  get_versions: () => Promise<string[]>
+  get_versions: () => Promise<{ id: string, downloaded: boolean }[]>
+  downloadVersionAssets: (version: string) => Promise<{
+    version: string
+    assetIndex: string
+    downloadedAssets: number
+    reusedAssets: number
+  }>
   get_mcSounds: (version: string) => Promise<Sound[]>
   get_mcSoundHash: (hash: string) => Promise<string>
+  get_mcSoundData: (hash: string) => Promise<ArrayBuffer>
   make_sub_window: () => void
   loadSettings: () => Promise<SettingType>
   updateSettings: (partial: Record<string, SettingType>) => void

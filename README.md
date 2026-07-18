@@ -25,6 +25,14 @@ Knead is a Tauri v2 desktop application. Install Node.js, Rust, and the
 [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform first.
 Windows builds use Microsoft Edge WebView2.
 
+Minecraft本体がインストールされていない環境でも、バージョン選択時にMojangの
+公式配信元から必要な音声アセットを取得して利用できます。ダウンロードした
+メタデータ、asset index、音声は標準の `.minecraft` キャッシュ形式で保存されます。
+
+Knead can also be used without a local Minecraft installation. Selecting a
+version downloads the required sound assets from Mojang's official services
+and stores them in the standard `.minecraft` cache layout.
+
 ```sh
 npm install
 npm run dev

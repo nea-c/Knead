@@ -36,7 +36,7 @@ type Commands = {
   pause: () => void
   stop: () => void
 
-  setSound: (soundKey: string, uri: string, speed?: number, volume?: number) => Promise<void>
+  setSound: (soundKey: string, source: string | ArrayBuffer, speed?: number, volume?: number) => Promise<void>
   setSounds: (sounds: { [k: string]: string | [uri: string, speed?: number, volume?: number] }) => Promise<void>
   setVolume: (soundKey: string, volume: number) => void
   setSpeed: (soundKey: string, speed: number) => void
@@ -160,9 +160,10 @@ export const useAudioPlay = (): { context: GlobalContext, contexts: { head?: Pub
   }, [setAudioState])
 
   // MARK: createAudioBuffer
-  const createAudioBuffer = useCallback(async (uri: string): Promise<AudioBuffer> => {
-    const res = await fetch(uri)
-    const buffer = await res.arrayBuffer()
+  const createAudioBuffer = useCallback(async (source: string | ArrayBuffer): Promise<AudioBuffer> => {
+    const buffer = typeof source === 'string'
+      ? await (await fetch(source)).arrayBuffer()
+      : source
     return await audioContext.decodeAudioData(buffer)
   }, [audioContext])
 
@@ -177,7 +178,7 @@ export const useAudioPlay = (): { context: GlobalContext, contexts: { head?: Pub
   }), [])
 
   // MARK: setSound
-  const setSound = useCallback(async (soundKey: string, uri: string, speed: number = 1, volume: number = 1) => {
+  const setSound = useCallback(async (soundKey: string, source: string | ArrayBuffer, speed: number = 1, volume: number = 1) => {
     try {
       // 同期的に確実に停止する
       await stop()
@@ -189,7 +190,7 @@ export const useAudioPlay = (): { context: GlobalContext, contexts: { head?: Pub
       setAudioState({})
       await new Promise(resolve => setTimeout(resolve, 50))
 
-      const buffer = await createAudioBuffer(uri)
+      const buffer = await createAudioBuffer(source)
       setAudioState({ [soundKey]: createContext({ buffer, maxTime: buffer.duration, volume, speed }) })
     }
     catch (e) {

@@ -1,18 +1,22 @@
-#[cfg(not(debug_assertions))]
-use futures_util::StreamExt;
+use futures_util::{stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use sha1::{Digest, Sha1};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env, fs,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
+    time::{Duration, SystemTime},
 };
 #[cfg(not(debug_assertions))]
 use std::{io::Write, process::Command};
 #[cfg(not(debug_assertions))]
 use tauri::window::{ProgressBarState, ProgressBarStatus};
-use tauri::{AppHandle, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 #[cfg(not(debug_assertions))]
 use tauri_plugin_dialog::{MessageDialogButtons, MessageDialogKind};
@@ -50,6 +54,75 @@ struct SoundDetail {
 struct SoundEvent {
     sounds: Vec<SoundEntry>,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct VersionManifest {
+    versions: Vec<ManifestVersion>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct ManifestVersion {
+    id: String,
+    url: String,
+    sha1: String,
+    #[serde(rename = "type")]
+    kind: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssetIndexReference {
+    id: String,
+    url: String,
+    sha1: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VersionMetadata {
+    asset_index: AssetIndexReference,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssetIndex {
+    objects: HashMap<String, AssetObject>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssetObject {
+    hash: String,
+    size: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetDownloadResult {
+    version: String,
+    asset_index: String,
+    downloaded_assets: usize,
+    reused_assets: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetDownloadProgress {
+    version: String,
+    completed_assets: usize,
+    total_assets: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MinecraftVersion {
+    id: String,
+    downloaded: bool,
+}
+
+const VERSION_MANIFEST_URL: &str =
+    "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+const ASSET_OBJECT_BASE_URL: &str = "https://resources.download.minecraft.net";
+const ASSET_DOWNLOAD_CONCURRENCY: usize = 12;
+const VERSION_MANIFEST_CACHE_MAX_AGE: Duration = Duration::from_secs(6 * 60 * 60);
+static DOWNLOAD_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Default)]
 struct AppState {
@@ -133,6 +206,320 @@ fn minecraft_dir() -> Result<PathBuf, String> {
             .map(|path| path.join(".minecraft"))
             .ok_or_else(|| "HOME is not set".to_string());
     }
+}
+
+fn validate_version(version: &str) -> Result<(), String> {
+    if version.is_empty()
+        || version.contains(['/', '\\'])
+        || version == "."
+        || version == ".."
+        || version.chars().any(char::is_control)
+    {
+        return Err("Invalid Minecraft version".to_string());
+    }
+    Ok(())
+}
+
+fn version_json_path(root: &Path, version: &str) -> PathBuf {
+    root.join("versions")
+        .join(version)
+        .join(format!("{version}.json"))
+}
+
+fn asset_index_path(root: &Path, asset_index: &str) -> PathBuf {
+    root.join("assets/indexes")
+        .join(format!("{asset_index}.json"))
+}
+
+fn sha1_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha1::digest(bytes))
+}
+
+fn verify_download(bytes: &[u8], expected_sha1: &str, label: &str) -> Result<(), String> {
+    if sha1_hex(bytes) != expected_sha1.to_ascii_lowercase() {
+        return Err(format!("SHA-1 verification failed for {label}"));
+    }
+    Ok(())
+}
+
+fn write_download(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Invalid download path: {}", path.display()))?;
+    fs::create_dir_all(parent).map_err(|error| format!("{}: {error}", parent.display()))?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("Invalid download path: {}", path.display()))?
+        .to_string_lossy();
+    let temporary = parent.join(format!(
+        "{file_name}.{}.{}.part",
+        std::process::id(),
+        DOWNLOAD_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::write(&temporary, bytes).map_err(|error| format!("{}: {error}", temporary.display()))?;
+    if let Err(error) = fs::rename(&temporary, path) {
+        // Another request may have completed the same content-addressed download.
+        if path.is_file() {
+            let _ = fs::remove_file(&temporary);
+            return Ok(());
+        }
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("{}: {error}", path.display()));
+    }
+    Ok(())
+}
+
+async fn download_bytes(
+    client: &reqwest::Client,
+    url: &str,
+    label: &str,
+) -> Result<Vec<u8>, String> {
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to download {label}: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Failed to download {label}: {error}"))?;
+    Ok(response
+        .bytes()
+        .await
+        .map_err(|error| format!("Failed to read {label}: {error}"))?
+        .to_vec())
+}
+
+async fn fetch_version_manifest(client: &reqwest::Client) -> Result<VersionManifest, String> {
+    client
+        .get(VERSION_MANIFEST_URL)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to download the Minecraft version list: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Failed to download the Minecraft version list: {error}"))?
+        .json::<VersionManifest>()
+        .await
+        .map_err(|error| format!("Invalid Minecraft version list: {error}"))
+}
+
+fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
+    let raw = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    serde_json::from_slice(&raw).map_err(|error| format!("{}: {error}", path.display()))
+}
+
+fn manifest_cache_path(root: &Path) -> PathBuf {
+    root.join("assets/knead/version_manifest_v2.json")
+}
+
+async fn version_manifest(
+    client: &reqwest::Client,
+    root: &Path,
+) -> Result<VersionManifest, String> {
+    let cache_path = manifest_cache_path(root);
+    let cached = read_json::<VersionManifest>(&cache_path).ok();
+    let cache_is_fresh = cache_path
+        .metadata()
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
+        .map(|age| age <= VERSION_MANIFEST_CACHE_MAX_AGE)
+        .unwrap_or(false);
+    if cache_is_fresh {
+        if let Some(manifest) = cached.clone() {
+            return Ok(manifest);
+        }
+    }
+
+    match fetch_version_manifest(client).await {
+        Ok(manifest) => {
+            if let Ok(bytes) = serde_json::to_vec(&manifest) {
+                let _ = write_download(&cache_path, &bytes);
+            }
+            Ok(manifest)
+        }
+        Err(_) if cached.is_some() => Ok(cached.expect("cached manifest should exist")),
+        Err(error) => Err(error),
+    }
+}
+
+fn download_marker_path(root: &Path, version: &str) -> PathBuf {
+    root.join("assets/knead/downloaded")
+        .join(format!("{}.complete", sha1_hex(version.as_bytes())))
+}
+
+fn mark_version_downloaded(root: &Path, version: &str) -> Result<(), String> {
+    write_download(&download_marker_path(root, version), b"complete\n")
+}
+
+fn local_versions(root: &Path) -> Result<Vec<String>, String> {
+    let versions = root.join("versions");
+    if !versions.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut result = Vec::new();
+    for entry in
+        fs::read_dir(&versions).map_err(|error| format!("{}: {error}", versions.display()))?
+    {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let version = entry.file_name().to_string_lossy().into_owned();
+        if entry.path().is_dir() && version_json_path(root, &version).is_file() {
+            result.push(version);
+        }
+    }
+    Ok(result)
+}
+
+fn is_version_downloaded(root: &Path, version: &str) -> bool {
+    if download_marker_path(root, version).is_file() {
+        return true;
+    }
+
+    // Compatibility for versions installed before completion markers existed.
+    // Checking one required object keeps startup fast; selecting the version still
+    // verifies and repairs every sound asset before marking it complete.
+    let metadata = match read_json::<VersionMetadata>(&version_json_path(root, version)) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+    let index = match read_json::<AssetIndex>(&asset_index_path(root, &metadata.asset_index.id)) {
+        Ok(index) => index,
+        Err(_) => return false,
+    };
+    let object = match index
+        .objects
+        .iter()
+        .find(|(name, _)| name.ends_with("sounds.json"))
+        .map(|(_, object)| object)
+    {
+        Some(object)
+            if object.hash.len() == 40
+                && object.hash.chars().all(|value| value.is_ascii_hexdigit()) =>
+        {
+            object
+        }
+        _ => return false,
+    };
+    root.join("assets/objects")
+        .join(&object.hash[..2])
+        .join(&object.hash)
+        .metadata()
+        .map(|metadata| metadata.is_file() && metadata.len() == object.size)
+        .unwrap_or(false)
+}
+
+fn sound_asset_objects(index: &AssetIndex) -> Result<Vec<AssetObject>, String> {
+    let mut hashes = HashSet::new();
+    let mut result = Vec::new();
+    for (name, object) in &index.objects {
+        if !(name.ends_with("sounds.json") || name.ends_with(".ogg")) {
+            continue;
+        }
+        if object.hash.len() != 40 || !object.hash.chars().all(|value| value.is_ascii_hexdigit()) {
+            return Err(format!("Invalid asset hash for {name}"));
+        }
+        if hashes.insert(object.hash.clone()) {
+            result.push(object.clone());
+        }
+    }
+    if !index
+        .objects
+        .keys()
+        .any(|name| name.ends_with("sounds.json"))
+    {
+        return Err("sounds.json is missing from the asset index".to_string());
+    }
+    Ok(result)
+}
+
+async fn ensure_version_metadata(
+    client: &reqwest::Client,
+    root: &Path,
+    version: &str,
+) -> Result<VersionMetadata, String> {
+    let path = version_json_path(root, version);
+    if path.is_file() {
+        return read_json(&path);
+    }
+
+    let manifest = version_manifest(client, root).await?;
+    let entry = manifest
+        .versions
+        .into_iter()
+        .find(|entry| entry.id == version)
+        .ok_or_else(|| format!("Minecraft version {version} was not found"))?;
+    let bytes =
+        download_bytes(client, &entry.url, &format!("Minecraft {version} metadata")).await?;
+    verify_download(
+        &bytes,
+        &entry.sha1,
+        &format!("Minecraft {version} metadata"),
+    )?;
+    let metadata = serde_json::from_slice::<VersionMetadata>(&bytes)
+        .map_err(|error| format!("Invalid Minecraft {version} metadata: {error}"))?;
+    write_download(&path, &bytes)?;
+    Ok(metadata)
+}
+
+async fn ensure_asset_index(
+    client: &reqwest::Client,
+    root: &Path,
+    reference: &AssetIndexReference,
+) -> Result<AssetIndex, String> {
+    let path = asset_index_path(root, &reference.id);
+    if path.is_file() {
+        return read_json(&path);
+    }
+
+    let bytes = download_bytes(
+        client,
+        &reference.url,
+        &format!("asset index {}", reference.id),
+    )
+    .await?;
+    verify_download(
+        &bytes,
+        &reference.sha1,
+        &format!("asset index {}", reference.id),
+    )?;
+    let index = serde_json::from_slice::<AssetIndex>(&bytes)
+        .map_err(|error| format!("Invalid asset index {}: {error}", reference.id))?;
+    write_download(&path, &bytes)?;
+    Ok(index)
+}
+
+async fn download_sound_object(
+    client: reqwest::Client,
+    root: PathBuf,
+    object: AssetObject,
+) -> Result<bool, String> {
+    let path = root
+        .join("assets/objects")
+        .join(&object.hash[..2])
+        .join(&object.hash);
+    if path
+        .metadata()
+        .map(|metadata| metadata.len() == object.size)
+        .unwrap_or(false)
+    {
+        return Ok(false);
+    }
+    if path.exists() {
+        fs::remove_file(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    }
+    let url = format!(
+        "{ASSET_OBJECT_BASE_URL}/{}/{}",
+        &object.hash[..2],
+        object.hash
+    );
+    let bytes = download_bytes(&client, &url, &format!("asset {}", object.hash)).await?;
+    if bytes.len() as u64 != object.size {
+        return Err(format!(
+            "Size verification failed for asset {}",
+            object.hash
+        ));
+    }
+    verify_download(&bytes, &object.hash, &format!("asset {}", object.hash))?;
+    write_download(&path, &bytes)?;
+    Ok(true)
 }
 
 fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -256,40 +643,95 @@ fn append_entry(
 }
 
 #[tauri::command]
-fn get_versions() -> Result<Vec<String>, String> {
-    let versions = minecraft_dir()?.join("versions");
-    // Minecraft is optional. A first launch on a machine where it is not installed
-    // should show an empty selector instead of surfacing a filesystem error dialog.
-    if !versions.is_dir() {
-        return Ok(Vec::new());
-    }
-    let mut result = Vec::new();
-    for entry in
-        fs::read_dir(&versions).map_err(|error| format!("{}: {error}", versions.display()))?
-    {
-        let entry = entry.map_err(|error| error.to_string())?;
-        let path = entry.path();
-        if path.is_dir()
-            && fs::read_dir(&path)
-                .map(|items| {
-                    items.filter_map(Result::ok).any(|item| {
-                        item.path().extension().and_then(|ext| ext.to_str()) == Some("json")
-                    })
-                })
-                .unwrap_or(false)
-        {
-            result.push(entry.file_name().to_string_lossy().into_owned());
+async fn get_versions() -> Result<Vec<MinecraftVersion>, String> {
+    let root = minecraft_dir()?;
+    let local = local_versions(&root)?;
+    let mut versions = local
+        .iter()
+        .map(|version| (version.clone(), is_version_downloaded(&root, version)))
+        .collect::<HashMap<_, _>>();
+    let client = reqwest::Client::new();
+    match version_manifest(&client, &root).await {
+        Ok(manifest) => {
+            for entry in manifest
+                .versions
+                .into_iter()
+                .filter(|entry| entry.kind == "release" || entry.kind == "snapshot")
+            {
+                versions.entry(entry.id).or_insert(false);
+            }
         }
+        Err(error) if versions.is_empty() => return Err(error),
+        Err(_) => {}
     }
-    result.sort();
+    let mut result = versions
+        .into_iter()
+        .map(|(id, downloaded)| MinecraftVersion { id, downloaded })
+        .collect::<Vec<_>>();
+    result.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(result)
 }
 
 #[tauri::command]
-fn get_mc_sounds(version: String, state: State<'_, AppState>) -> Result<Vec<Sound>, String> {
-    if version.contains(['/', '\\']) || version == "." || version == ".." {
-        return Err("Invalid Minecraft version".to_string());
+async fn download_version_assets(
+    app: AppHandle,
+    version: String,
+) -> Result<AssetDownloadResult, String> {
+    validate_version(&version)?;
+    let root = minecraft_dir()?;
+    let client = reqwest::Client::new();
+    let metadata = ensure_version_metadata(&client, &root, &version).await?;
+    let index = ensure_asset_index(&client, &root, &metadata.asset_index).await?;
+    let objects = sound_asset_objects(&index)?;
+    let total = objects.len();
+    app.emit(
+        "asset-download-progress",
+        AssetDownloadProgress {
+            version: version.clone(),
+            completed_assets: 0,
+            total_assets: total,
+        },
+    )
+    .map_err(|error| error.to_string())?;
+
+    let mut downloads = stream::iter(
+        objects
+            .into_iter()
+            .map(|object| download_sound_object(client.clone(), root.clone(), object)),
+    )
+    .buffer_unordered(ASSET_DOWNLOAD_CONCURRENCY);
+
+    let mut downloaded_assets = 0;
+    let mut completed_assets = 0;
+    while let Some(download) = downloads.next().await {
+        if download? {
+            downloaded_assets += 1;
+        }
+        completed_assets += 1;
+        if completed_assets % 25 == 0 || completed_assets == total {
+            app.emit(
+                "asset-download-progress",
+                AssetDownloadProgress {
+                    version: version.clone(),
+                    completed_assets,
+                    total_assets: total,
+                },
+            )
+            .map_err(|error| error.to_string())?;
+        }
     }
+    mark_version_downloaded(&root, &version)?;
+    Ok(AssetDownloadResult {
+        version,
+        asset_index: metadata.asset_index.id,
+        downloaded_assets,
+        reused_assets: total - downloaded_assets,
+    })
+}
+
+#[tauri::command]
+fn get_mc_sounds(version: String, state: State<'_, AppState>) -> Result<Vec<Sound>, String> {
+    validate_version(&version)?;
     let root = minecraft_dir()?;
     let version_json = root
         .join("versions")
@@ -372,6 +814,19 @@ fn get_mc_sound_hash(hash: String) -> Result<String, String> {
         .join(hash)
         .to_string_lossy()
         .into_owned())
+}
+
+#[tauri::command]
+fn get_mc_sound_data(hash: String) -> Result<tauri::ipc::Response, String> {
+    if hash.len() < 2 || !hash.chars().all(|character| character.is_ascii_hexdigit()) {
+        return Err("Invalid sound hash".to_string());
+    }
+    let path = minecraft_dir()?
+        .join("assets/objects")
+        .join(&hash[..2])
+        .join(hash);
+    let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 #[tauri::command]
@@ -758,8 +1213,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_versions,
+            download_version_assets,
             get_mc_sounds,
             get_mc_sound_hash,
+            get_mc_sound_data,
             make_sub_window,
             load_settings,
             update_settings,
@@ -778,4 +1235,115 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Knead");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn object(hash_character: char, size: u64) -> AssetObject {
+        AssetObject {
+            hash: std::iter::repeat(hash_character).take(40).collect(),
+            size,
+        }
+    }
+
+    #[test]
+    fn sound_assets_only_include_the_sound_manifest_and_audio() {
+        let shared_audio = object('a', 10);
+        let index = AssetIndex {
+            objects: HashMap::from([
+                ("minecraft/sounds.json".to_string(), object('b', 20)),
+                (
+                    "minecraft/sounds/ui/click.ogg".to_string(),
+                    shared_audio.clone(),
+                ),
+                (
+                    "minecraft/sounds/ui/click-copy.ogg".to_string(),
+                    shared_audio,
+                ),
+                ("minecraft/textures/gui.png".to_string(), object('c', 30)),
+            ]),
+        };
+
+        let assets = sound_asset_objects(&index).expect("sound assets should be valid");
+        assert_eq!(assets.len(), 2);
+        assert!(assets.iter().any(|asset| asset.hash == "a".repeat(40)));
+        assert!(assets.iter().any(|asset| asset.hash == "b".repeat(40)));
+    }
+
+    #[test]
+    fn sound_assets_require_sounds_json() {
+        let index = AssetIndex {
+            objects: HashMap::from([(
+                "minecraft/sounds/ui/click.ogg".to_string(),
+                object('a', 10),
+            )]),
+        };
+        assert!(sound_asset_objects(&index).is_err());
+    }
+
+    #[test]
+    fn minecraft_version_cannot_escape_the_cache_directory() {
+        assert!(validate_version("1.21.8").is_ok());
+        assert!(validate_version("26.3-snapshot-4").is_ok());
+        assert!(validate_version("../assets").is_err());
+        assert!(validate_version("folder\\version").is_err());
+    }
+
+    #[test]
+    fn downloaded_version_supports_legacy_cache_and_completion_marker() {
+        let root = std::env::temp_dir().join(format!(
+            "knead-assets-test-{}-{}",
+            std::process::id(),
+            DOWNLOAD_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let version = "test-version";
+        let hash = "d".repeat(40);
+        let metadata_path = version_json_path(&root, version);
+        let index_path = asset_index_path(&root, "test-index");
+        fs::create_dir_all(
+            metadata_path
+                .parent()
+                .expect("metadata parent should exist"),
+        )
+        .expect("metadata directory should be created");
+        fs::create_dir_all(index_path.parent().expect("index parent should exist"))
+            .expect("index directory should be created");
+        fs::write(
+            &metadata_path,
+            serde_json::to_vec(&json!({
+                "assetIndex": {
+                    "id": "test-index",
+                    "url": "https://example.invalid/index.json",
+                    "sha1": "0".repeat(40)
+                }
+            }))
+            .expect("metadata should serialize"),
+        )
+        .expect("metadata should be written");
+        fs::write(
+            &index_path,
+            serde_json::to_vec(&json!({
+                "objects": {
+                    "minecraft/sounds.json": { "hash": hash.clone(), "size": 4 }
+                }
+            }))
+            .expect("index should serialize"),
+        )
+        .expect("index should be written");
+
+        assert!(!is_version_downloaded(&root, version));
+        let object_path = root.join("assets/objects").join(&hash[..2]).join(&hash);
+        fs::create_dir_all(object_path.parent().expect("object parent should exist"))
+            .expect("object directory should be created");
+        fs::write(&object_path, [0_u8; 4]).expect("object should be written");
+        assert!(is_version_downloaded(&root, version));
+        fs::remove_file(&object_path).expect("legacy object should be removed");
+        assert!(!is_version_downloaded(&root, version));
+        mark_version_downloaded(&root, version).expect("completion marker should be written");
+        assert!(is_version_downloaded(&root, version));
+
+        fs::remove_dir_all(&root).expect("test cache should be removed");
+    }
 }
