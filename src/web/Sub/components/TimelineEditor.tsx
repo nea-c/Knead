@@ -366,10 +366,8 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     if (selectedIds.size === 0 || delta === 0) return
     const selMarkers = timeline.state.markers.filter(m => selectedIds.has(m.id))
     if (selMarkers.length === 0) return
-    const maxTick = Math.max(0, timeline.state.lengthTicks - 1)
     const minCur = Math.min(...selMarkers.map(m => m.tick))
-    const maxCur = Math.max(...selMarkers.map(m => m.tick))
-    const clamped = Math.max(-minCur, Math.min(delta, maxTick - maxCur))
+    const clamped = Math.max(-minCur, delta)
     if (clamped === 0) return
     const deltas = new Map<string, number>()
     for (const m of selMarkers) deltas.set(m.id, m.tick + clamped)
@@ -443,7 +441,6 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
         marker={singleSelected}
         selectionCount={selectedIds.size}
         selectedMarkers={selectedMarkers}
-        lengthTicks={timeline.state.lengthTicks}
         soundIdList={soundIdList}
         variants={variants}
         onChange={handlePanelChange}

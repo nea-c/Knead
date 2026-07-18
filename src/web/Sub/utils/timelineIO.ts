@@ -1,6 +1,7 @@
 import {
   SINGLE_SHOT_CURVE_PREVIEW_TICKS,
   TIMELINE_MARKER_SIZE,
+  getTimelineLengthTicks,
   type Keyframe,
   type Marker,
   type TimelineFile,
@@ -12,7 +13,7 @@ export function serialize(state: TimelineState): string {
     format: 'knead-project',
     version: 1,
     targetVersion: state.targetVersion,
-    lengthTicks: state.lengthTicks,
+    lengthTicks: getTimelineLengthTicks(state.markers),
     markers: state.markers,
   }
   return JSON.stringify(file, null, 2)
@@ -36,7 +37,7 @@ function validateHandle(x: unknown): boolean {
 
 function validateKeyframe(x: unknown): x is Keyframe {
   if (!isObj(x)) return false
-  if (typeof x.tick !== 'number' || !Number.isInteger(x.tick) || x.tick < 0) return false
+  if (typeof x.tick !== 'number' || !Number.isFinite(x.tick) || x.tick < 0) return false
   if (typeof x.value !== 'number' || !Number.isFinite(x.value)) return false
   if (x.interpolation !== 'linear' && x.interpolation !== 'bezier') return false
   if (x.handleL !== undefined && !validateHandle(x.handleL)) return false
@@ -163,7 +164,7 @@ export function parse(json: string): ParseResult {
     ok: true,
     state: {
       targetVersion: raw.targetVersion,
-      lengthTicks: raw.lengthTicks,
+      lengthTicks: getTimelineLengthTicks(raw.markers as Marker[]),
       markers: raw.markers as Marker[],
     },
     warnings: [],
@@ -176,7 +177,16 @@ export function _selfCheckTimelineIO(): void {
     lengthTicks: 100,
     markers: [
       { id: 'a', tick: 10, soundId: 'block.note_block.pling', variantIndex: -1, volume: 1, pitch: 1 },
-      { id: 'b', tick: 50, soundId: 'ambient.cave', variantIndex: 0, volume: 0.5, pitch: 1.5, duration: 20, retriggerInterval: 5, trackY: 24 },
+      {
+        id: 'b', tick: 50, soundId: 'ambient.cave', variantIndex: 0, volume: 0.5, pitch: 1.5,
+        duration: 20, retriggerInterval: 5, trackY: 24,
+        volumeCurve: {
+          keyframes: [
+            { tick: 9.25, value: 0.75, interpolation: 'bezier', handleR: { dt: 3.7, dv: 0.1 } },
+            { tick: 18.5, value: 0.5, interpolation: 'linear', handleL: { dt: -3.7, dv: -0.1 } },
+          ],
+        },
+      },
     ],
   }
   const json = serialize(state)
@@ -184,7 +194,11 @@ export function _selfCheckTimelineIO(): void {
   if (!result.ok) throw new Error(`往復パース失敗: ${result.error}`)
   if (result.state.markers.length !== 2) throw new Error(`marker 数不一致`)
   if (result.state.markers[1].duration !== 20) throw new Error(`duration 消失`)
+  if (result.state.lengthTicks !== 270) throw new Error('自動トラック長が不正')
   if (result.state.markers[1].trackY !== 24) throw new Error(`trackY 消失`)
+  if (result.state.markers[1].volumeCurve?.keyframes[0].tick !== 9.25) {
+    throw new Error('割合変換後の小数 tick が消失')
+  }
 
   // format 違い拒否
   const badFormat = parse(JSON.stringify({ format: 'other', version: 1, targetVersion: '', lengthTicks: 1, markers: [] }))

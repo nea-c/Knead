@@ -127,7 +127,7 @@ export const CurveEditor: React.FC<Props> = ({
     const normalized = newKfs
       .map(kf => ({
         ...kf,
-        tick: Math.round(Math.max(0, Math.min(duration, kf.tick))),
+        tick: Math.max(0, Math.min(duration, kf.tick)),
       }))
       .sort((a, b) => a.tick - b.tick)
     if (normalized.some((kf, i) => i > 0 && normalized[i - 1].tick === kf.tick)) return false

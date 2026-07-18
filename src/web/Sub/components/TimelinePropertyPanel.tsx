@@ -17,7 +17,6 @@ interface Props {
   marker: Marker | null
   selectionCount: number
   selectedMarkers: Marker[]
-  lengthTicks: number
   soundIdList: string[]
   variants: { path: string, hash: string }[]
   onChange: (patch: Partial<Marker>) => void
@@ -42,7 +41,7 @@ function commonValue<T>(items: Marker[], get: (m: Marker) => T): T | typeof MIXE
 }
 
 export const TimelinePropertyPanel: React.FC<Props> = React.memo(function TimelinePropertyPanel({
-  marker, selectionCount, selectedMarkers, lengthTicks, soundIdList, variants,
+  marker, selectionCount, selectedMarkers, soundIdList, variants,
   onChange, onShiftTick, onBeginEdit, onEndEdit, soundFocusRequest, onSoundFocusHandled,
 }) {
   const [tickShift, setTickShift] = useState<number>(0)
@@ -64,7 +63,6 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
   }
 
   const isMulti = selectionCount >= 2
-  const maxTick = Math.max(0, lengthTicks - 1)
   const showCurves = !isMulti && marker !== null
   const curveKeyframes = [
     ...(marker?.volumeCurve?.keyframes ?? []),
@@ -97,7 +95,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             <Text fontSize="sm" color="gray.400" mb="1">Tick</Text>
             <NumberInput
               value={marker.tick}
-              min={0} max={maxTick} step={1} precision={0}
+              min={0} step={1} precision={0}
               onChange={(_str, num) => {
                 if (!Number.isNaN(num)) onChange({ tick: num })
               }}

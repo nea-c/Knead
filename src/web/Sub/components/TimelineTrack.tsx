@@ -220,22 +220,19 @@ export const TimelineTrack: React.FC<Props> = ({
         onResizeMarker(d.primaryId, nextTick, originEnd - nextTick)
       }
       else {
-        const maxDuration = Math.max(0, lengthTicks - d.originTick)
-        const nextDuration = Math.max(0, Math.min(maxDuration, d.originDuration + deltaTick))
+        const nextDuration = Math.max(0, d.originDuration + deltaTick)
         onResizeMarker(d.primaryId, d.originTick, nextDuration)
       }
       return
     }
     const nextPositions = new Map<string, { tick: number, trackY?: number }>()
     let minOrigin = Infinity
-    let maxOrigin = -Infinity
     for (const origin of d.origins.values()) {
       minOrigin = Math.min(minOrigin, origin.tick)
-      maxOrigin = Math.max(maxOrigin, origin.tick)
     }
     const clampedDelta = Math.max(
       -minOrigin,
-      Math.min(lengthTicks - 1 - maxOrigin, deltaTick),
+      deltaTick,
     )
     const hasVerticalMove = Math.abs(deltaY) > 2
     if (hasVerticalMove) {
