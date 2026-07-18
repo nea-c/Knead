@@ -4,7 +4,7 @@ import { Drawer, DrawerHeader, DrawerBody, useDisclosure, IconButton, Switch, Te
 import { ThemeChange } from './ThemeChange'
 import { useTranslation } from 'react-i18next'
 import { LanguageChange } from './LanguageChange'
-import { version } from '../../../package.json'
+import packageJson from '../../../package.json'
 
 export const Configuration = () => {
   const { open, onOpen, onClose } = useDisclosure()
@@ -33,7 +33,7 @@ export const Configuration = () => {
     window.myAPI.updateSettings({ holdRatingFilter: v })
   }
 
-  const appVersion = 'v' + version
+  const appVersion = 'v' + packageJson.version
 
   return (
     <>

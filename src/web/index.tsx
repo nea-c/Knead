@@ -9,6 +9,7 @@ import { HashRouter, Routes, Route } from 'react-router'
 import { store } from '../store/_store'
 import { Provider } from 'react-redux'
 import './i18n/configs'
+import '../tauri-api'
 
 export const config: ThemeConfig = {
   initialColorMode: 'system',
@@ -40,16 +41,22 @@ const injectColorModeScript = () => {
 
 injectColorModeScript()
 
+const isSubWindow = window.location.pathname.endsWith('/sub.html')
+
 createRoot(document.getElementById('root') as Element).render(
   <Provider store={store}>
     <UIProvider config={customConfig} theme={customTheme}>
       <AppInitialize />
-      <HashRouter>
-        <Routes>
-          <Route index element={<App />} />
-          <Route path="sub" element={<SubApp />} />
-        </Routes>
-      </HashRouter>
+      {isSubWindow
+        ? <SubApp />
+        : (
+            <HashRouter>
+              <Routes>
+                <Route index element={<App />} />
+                <Route path="sub" element={<SubApp />} />
+              </Routes>
+            </HashRouter>
+          )}
     </UIProvider>
   </Provider>,
 )

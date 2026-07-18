@@ -1,0 +1,68 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Knead",
+  "version": "0.3.5",
+  "identifier": "com.neac.knead",
+  "mainBinaryName": "knead",
+  "build": {
+    "beforeDevCommand": "npm run dev:web",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Knead",
+        "width": 950,
+        "height": 830,
+        "minWidth": 650,
+        "minHeight": 650,
+        "center": true,
+        "visible": true
+      },
+      {
+        "label": "sub",
+        "title": "Knead",
+        "url": "sub.html",
+        "width": 1200,
+        "height": 690,
+        "minWidth": 900,
+        "minHeight": 650,
+        "center": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' customprotocol: asset: http://asset.localhost; connect-src ipc: http://ipc.localhost asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost data:; media-src 'self' asset: http://asset.localhost blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": {
+          "requireLiteralLeadingDot": false,
+          "allow": [
+            "$APPDATA/.minecraft/assets/objects/**/*",
+            "$HOME/.minecraft/assets/objects/**/*",
+            "$HOME/Library/Application Support/minecraft/assets/objects/**/*"
+          ]
+        }
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "../build/icon.png",
+      "../build/icon.ico",
+      "../build/icon.icns"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "category": "DeveloperTool",
+    "shortDescription": "Minecraft playsound generator"
+  }
+}

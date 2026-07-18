@@ -20,11 +20,12 @@
         "pkg-build": "pkg . --targets node16-win-x64 --output Knead-Updater.exe",
         "start": "node dist/updater-main.js"
     },
+    "dependencies": {
+        "adm-zip": "^0.5.18"
+    },
     "devDependencies": {
-        "@types/adm-zip": "^0.5.7",
-        "adm-zip": "^0.5.16",
-        "typescript": "^5.7.2",
-        "electron": "^33.2.1"
+        "@types/adm-zip": "^0.5.8",
+        "typescript": "^5.7.2"
     },
     "bin": "dist/updater-main.js",
     "pkg": {

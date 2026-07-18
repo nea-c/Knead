@@ -1,5 +1,5 @@
-import { SettingType } from '../src/config'
 import { Sound } from '../src/store/fetchSlice'
+import { SettingType } from '../src/types/Settings'
 
 declare global {
   interface Window {
