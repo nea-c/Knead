@@ -260,6 +260,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             snapValues={PITCH_SNAP_VALUES}
             snapValueLabels={PITCH_SNAP_LABELS}
             valueTooltip
+            warningRange={{ min: 0.5, max: 2.0 }}
             onChange={(next: Curve | undefined) => onChange({ pitchCurve: next })}
             onBeginEdit={onBeginEdit}
             onEndEdit={onEndEdit}

@@ -10,8 +10,11 @@ import {
 import { constrainCurveHandles } from './curveHandles'
 
 function constrainMarkerHandles(marker: Marker): Marker {
-  const volumeCurve = constrainCurveHandles(marker.volumeCurve)
-  const pitchCurve = constrainCurveHandles(marker.pitchCurve)
+  const duration = marker.duration && marker.duration > 0
+    ? marker.duration
+    : SINGLE_SHOT_CURVE_PREVIEW_TICKS
+  const volumeCurve = constrainCurveHandles(marker.volumeCurve, duration)
+  const pitchCurve = constrainCurveHandles(marker.pitchCurve, duration)
   if (volumeCurve === marker.volumeCurve && pitchCurve === marker.pitchCurve) return marker
   return { ...marker, volumeCurve, pitchCurve }
 }
@@ -179,7 +182,7 @@ export function parse(json: string): ParseResult {
       markers,
     },
     warnings: handlesCorrected
-      ? ['制御点の反対側にあったカーブハンドルを補正しました']
+      ? ['カーブハンドルの向き、または端点の外向きハンドルを補正しました']
       : [],
   }
 }

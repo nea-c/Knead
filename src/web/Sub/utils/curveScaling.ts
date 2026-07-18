@@ -1,5 +1,5 @@
 import type { Curve, Keyframe } from '../types/timeline'
-import { constrainHandleDt, type HandleSide } from './curveHandles'
+import { constrainCurveHandles, constrainHandleDt, type HandleSide } from './curveHandles'
 
 const TIME_PRECISION = 12
 
@@ -26,7 +26,7 @@ export function scaleCurveDuration(
   if (oldDuration <= 0 || newDuration <= 0) return curve
 
   const scale = newDuration / oldDuration
-  return {
+  return constrainCurveHandles({
     keyframes: curve.keyframes
       .map(keyframe => ({
         ...keyframe,
@@ -37,7 +37,7 @@ export function scaleCurveDuration(
         handleR: scaleHandle(keyframe.handleR, scale, 'R'),
       }))
       .sort((a, b) => a.tick - b.tick),
-  }
+  }, newDuration)
 }
 
 export function _selfCheckCurveScaling(): void {
