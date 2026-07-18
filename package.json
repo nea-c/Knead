@@ -14,7 +14,7 @@
     "tauri": "tauri",
     "tcm": "tcm src",
     "lint": "eslint src/** --no-error-on-unmatched-pattern --fix",
-    "selfcheck": "npx ts-node -e \"require('./src/web/Sub/utils/tickPixel')._selfCheckTickPixel(); require('./src/web/Sub/utils/timelineIO')._selfCheckTimelineIO(); require('./src/web/Sub/utils/curvePresets')._selfCheckCurvePresets(); require('./src/web/Sub/utils/curveScaling')._selfCheckCurveScaling(); require('./src/web/Sub/utils/curveHandles')._selfCheckCurveHandles()\""
+    "selfcheck": "npx ts-node -e \"require('./src/web/Sub/utils/tickPixel')._selfCheckTickPixel(); require('./src/web/Sub/utils/timelineIO')._selfCheckTimelineIO(); require('./src/web/Sub/utils/curvePresets')._selfCheckCurvePresets(); require('./src/web/Sub/utils/curveScaling')._selfCheckCurveScaling(); require('./src/web/Sub/utils/curveHandles')._selfCheckCurveHandles(); require('./src/web/Sub/utils/projectFiles')._selfCheckProjectFiles()\""
   },
   "license": "Apache-2.0",
   "devDependencies": {

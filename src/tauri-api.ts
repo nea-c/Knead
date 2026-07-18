@@ -1,4 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { Sandbox } from '../@types/global'
 
 const invokeVoid = async (command: string, args?: Record<string, unknown>): Promise<void> => {
@@ -42,6 +44,11 @@ const api: Sandbox = {
     save: json => invoke('timeline_save', { json }),
     saveDialog: (defaultPath, json) => invoke('timeline_save_dialog', { defaultPath, json }),
     openDialog: () => invoke('timeline_open_dialog'),
+    openPath: path => invoke('timeline_open_path', { path }),
+    setCurrentPath: path => invoke('timeline_set_current_path', { path }),
+    takeOpenRequest: () => invoke('timeline_take_open_request'),
+    onOpenRequested: handler => listen('timeline-open-requested', handler),
+    onDragDrop: handler => getCurrentWindow().onDragDropEvent(event => handler(event.payload)),
   },
 }
 

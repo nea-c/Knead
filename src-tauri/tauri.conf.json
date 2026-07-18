@@ -58,6 +58,19 @@
       "../build/icon.ico",
       "../build/icon.icns"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["kp"],
+        "name": "Knead Project",
+        "description": "Knead Project",
+        "role": "Editor",
+        "mimeType": "application/x-knead-project",
+        "exportedType": {
+          "identifier": "com.neac.knead.project",
+          "conformsTo": ["public.json"]
+        }
+      }
+    ],
     "windows": {
       "nsis": {
         "installMode": "currentUser"

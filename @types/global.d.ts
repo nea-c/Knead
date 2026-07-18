@@ -1,6 +1,17 @@
 import { Sound } from '../src/store/fetchSlice'
 import { SettingType } from '../src/types/Settings'
 
+export type ProjectDragDropEvent =
+  | { type: 'enter', paths: string[] }
+  | { type: 'over' }
+  | { type: 'drop', paths: string[] }
+  | { type: 'leave' }
+
+export type TimelineOpenResult =
+  | { ok: true, path: string, json: string }
+  | { ok: false, canceled: true }
+  | { ok: false, error: string }
+
 declare global {
   interface Window {
     myAPI: Sandbox
@@ -38,6 +49,11 @@ export interface Sandbox {
       defaultPath: string | undefined,
       json: string,
     ) => Promise<{ ok: true, path: string } | { ok: false, canceled: true } | { ok: false, error: string }>
-    openDialog: () => Promise<{ ok: true, path: string, json: string } | { ok: false, canceled: true } | { ok: false, error: string }>
+    openDialog: () => Promise<TimelineOpenResult>
+    openPath: (path: string) => Promise<TimelineOpenResult>
+    setCurrentPath: (path: string) => Promise<{ ok: true, path: string } | { ok: false, error: string }>
+    takeOpenRequest: () => Promise<string | null>
+    onOpenRequested: (handler: () => void) => Promise<() => void>
+    onDragDrop: (handler: (event: ProjectDragDropEvent) => void) => Promise<() => void>
   }
 }

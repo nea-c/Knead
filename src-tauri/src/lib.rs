@@ -129,7 +129,10 @@ struct AppState {
     selected_sound: Mutex<String>,
     current_sounds: Mutex<Vec<Sound>>,
     timeline_paths: Mutex<HashMap<String, PathBuf>>,
+    pending_timeline_path: Mutex<Option<PathBuf>>,
 }
+
+const TIMELINE_OPEN_REQUESTED_EVENT: &str = "timeline-open-requested";
 
 #[cfg(not(debug_assertions))]
 #[derive(Debug, Deserialize)]
@@ -932,6 +935,79 @@ fn ok_path(path: &Path) -> Value {
     json!({ "ok": true, "path": path.to_string_lossy() })
 }
 
+fn is_knead_project_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("kp"))
+}
+
+fn validate_timeline_path(path: PathBuf) -> Result<PathBuf, String> {
+    if !is_knead_project_path(&path) {
+        return Err("Knead Project (.kp) を選択してください".to_string());
+    }
+    let path = if path.is_absolute() {
+        path
+    } else {
+        env::current_dir()
+            .map_err(|error| error.to_string())?
+            .join(path)
+    };
+    if !path.is_file() {
+        return Err(format!(
+            "プロジェクトファイルが見つかりません: {}",
+            path.display()
+        ));
+    }
+    path.canonicalize().map_err(|error| error.to_string())
+}
+
+fn project_path_from_args(args: &[String], cwd: &Path) -> Option<PathBuf> {
+    args.iter().skip(1).find_map(|argument| {
+        let path = PathBuf::from(argument);
+        let path = if path.is_absolute() {
+            path
+        } else {
+            cwd.join(path)
+        };
+        validate_timeline_path(path).ok()
+    })
+}
+
+fn queue_timeline_open(app: &AppHandle, path: PathBuf) -> bool {
+    let Ok(path) = validate_timeline_path(path) else {
+        return false;
+    };
+    let Some(state) = app.try_state::<AppState>() else {
+        return false;
+    };
+    let Ok(mut pending) = state.pending_timeline_path.lock() else {
+        return false;
+    };
+    *pending = Some(path);
+    drop(pending);
+
+    if let Some(window) = app.get_webview_window("sub") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.emit(TIMELINE_OPEN_REQUESTED_EVENT, ());
+    }
+    true
+}
+
+fn read_timeline_path(path: PathBuf) -> Value {
+    let path = match validate_timeline_path(path) {
+        Ok(path) => path,
+        Err(error) => return json!({ "ok": false, "error": error }),
+    };
+    match fs::read_to_string(&path) {
+        Ok(contents) => {
+            json!({ "ok": true, "path": path.to_string_lossy(), "json": contents })
+        }
+        Err(error) => json!({ "ok": false, "error": error.to_string() }),
+    }
+}
+
 #[tauri::command]
 fn timeline_save(window: WebviewWindow, json: String, state: State<'_, AppState>) -> Value {
     let path = state
@@ -962,7 +1038,7 @@ async fn timeline_save_dialog(
         .set_parent(&window)
         .set_title("Knead Project を保存")
         .add_filter("Knead Project", &["kp"])
-        .set_file_name(default_path.as_deref().unwrap_or("timeline.kp"));
+        .set_file_name(default_path.as_deref().unwrap_or("untitled.kp"));
     if let Some(parent) = default_path
         .as_deref()
         .map(Path::new)
@@ -991,11 +1067,7 @@ async fn timeline_save_dialog(
 }
 
 #[tauri::command]
-async fn timeline_open_dialog(
-    app: AppHandle,
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-) -> Result<Value, String> {
+async fn timeline_open_dialog(app: AppHandle, window: WebviewWindow) -> Result<Value, String> {
     let file = app
         .dialog()
         .file()
@@ -1010,15 +1082,41 @@ async fn timeline_open_dialog(
         Ok(path) => path,
         Err(error) => return Ok(json!({ "ok": false, "error": error.to_string() })),
     };
-    Ok(match fs::read_to_string(&path) {
-        Ok(contents) => {
-            if let Ok(mut paths) = state.timeline_paths.lock() {
-                paths.insert(window.label().to_string(), path.clone());
-            }
-            json!({ "ok": true, "path": path.to_string_lossy(), "json": contents })
+    Ok(read_timeline_path(path))
+}
+
+#[tauri::command]
+fn timeline_open_path(path: String) -> Value {
+    read_timeline_path(PathBuf::from(path))
+}
+
+#[tauri::command]
+fn timeline_set_current_path(
+    window: WebviewWindow,
+    path: String,
+    state: State<'_, AppState>,
+) -> Value {
+    let path = match validate_timeline_path(PathBuf::from(path)) {
+        Ok(path) => path,
+        Err(error) => return json!({ "ok": false, "error": error }),
+    };
+    match state.timeline_paths.lock() {
+        Ok(mut paths) => {
+            paths.insert(window.label().to_string(), path.clone());
+            ok_path(&path)
         }
         Err(error) => json!({ "ok": false, "error": error.to_string() }),
-    })
+    }
+}
+
+#[tauri::command]
+fn timeline_take_open_request(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    Ok(state
+        .pending_timeline_path
+        .lock()
+        .map_err(|error| error.to_string())?
+        .take()
+        .map(|path| path.to_string_lossy().into_owned()))
 }
 
 #[cfg(not(debug_assertions))]
@@ -1184,8 +1282,13 @@ fn start_update_check(app: AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            if project_path_from_args(&args, Path::new(&cwd))
+                .is_some_and(|path| queue_timeline_open(app, path))
+            {
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
@@ -1209,6 +1312,12 @@ pub fn run() {
         })
         .setup(|app| {
             start_update_check(app.handle().clone());
+            let args: Vec<String> = env::args().collect();
+            if let Ok(cwd) = env::current_dir() {
+                if let Some(path) = project_path_from_args(&args, &cwd) {
+                    queue_timeline_open(app.handle(), path);
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1232,9 +1341,29 @@ pub fn run() {
             timeline_save,
             timeline_save_dialog,
             timeline_open_dialog,
+            timeline_open_path,
+            timeline_set_current_path,
+            timeline_take_open_request,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running Knead");
+
+    app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        {
+            if let tauri::RunEvent::Opened { urls } = event {
+                if let Some(path) = urls
+                    .into_iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .find(|path| is_knead_project_path(path))
+                {
+                    queue_timeline_open(app, path);
+                }
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (app, event);
+    });
 }
 
 #[cfg(test)]
@@ -1289,6 +1418,56 @@ mod tests {
         assert!(validate_version("26.3-snapshot-4").is_ok());
         assert!(validate_version("../assets").is_err());
         assert!(validate_version("folder\\version").is_err());
+    }
+
+    #[test]
+    fn knead_project_extension_is_case_insensitive() {
+        assert!(is_knead_project_path(Path::new("project.kp")));
+        assert!(is_knead_project_path(Path::new("PROJECT.KP")));
+        assert!(!is_knead_project_path(Path::new("project.json")));
+        assert!(!is_knead_project_path(Path::new("project.kp.json")));
+    }
+
+    #[test]
+    fn project_path_is_found_in_file_association_arguments() {
+        let root = std::env::temp_dir().join(format!(
+            "knead-project-args-test-{}-{}",
+            std::process::id(),
+            DOWNLOAD_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).expect("test directory should be created");
+        let project = root.join("example.kp");
+        fs::write(&project, "{}").expect("test project should be written");
+        let args = vec!["knead".to_string(), "example.kp".to_string()];
+
+        assert_eq!(
+            project_path_from_args(&args, &root),
+            Some(project.canonicalize().expect("project should resolve"))
+        );
+
+        fs::remove_dir_all(&root).expect("test directory should be removed");
+    }
+
+    #[test]
+    fn timeline_path_reader_returns_project_contents() {
+        let root = std::env::temp_dir().join(format!(
+            "knead-project-read-test-{}-{}",
+            std::process::id(),
+            DOWNLOAD_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).expect("test directory should be created");
+        let project = root.join("example.kp");
+        fs::write(&project, "{\"format\":\"knead-project\"}")
+            .expect("test project should be written");
+
+        let result = read_timeline_path(project);
+        assert_eq!(result.get("ok").and_then(Value::as_bool), Some(true));
+        assert_eq!(
+            result.get("json").and_then(Value::as_str),
+            Some("{\"format\":\"knead-project\"}")
+        );
+
+        fs::remove_dir_all(&root).expect("test directory should be removed");
     }
 
     #[test]
