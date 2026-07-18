@@ -3,6 +3,7 @@ import { Box, Button, Text } from '@yamada-ui/react'
 import type { Curve, Keyframe } from '../types/timeline'
 import { applyEasePreset, calculateCurveViewport, EasePreset } from '../utils/curvePresets'
 import { sampleCurve } from '../utils/curveSampling'
+import { constrainCurveHandles, constrainHandleDt } from '../utils/curveHandles'
 
 interface Props {
   label: string
@@ -50,7 +51,7 @@ export const CurveEditor: React.FC<Props> = ({
   const [dragTooltip, setDragTooltip] = useState<{ x: number, y: number, value: number } | null>(null)
 
   const kfs: Keyframe[] = useMemo(() => {
-    const keyframes = curve?.keyframes ?? []
+    const keyframes = constrainCurveHandles(curve)?.keyframes ?? []
     const withEndpoints = [...keyframes]
     if (!withEndpoints.some(kf => kf.tick === 0)) {
       withEndpoints.push({ tick: 0, value: fallback, interpolation: 'linear' })
@@ -268,7 +269,10 @@ export const CurveEditor: React.FC<Props> = ({
         return {
           ...kf,
           handleL: {
-            dt: (d.origHandleL?.dt ?? -DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+            dt: constrainHandleDt(
+              'L',
+              (d.origHandleL?.dt ?? -DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+            ),
             dv: (d.origHandleL?.dv ?? 0) + rawValueDelta,
           },
         }
@@ -276,7 +280,10 @@ export const CurveEditor: React.FC<Props> = ({
       return {
         ...kf,
         handleR: {
-          dt: (d.origHandleR?.dt ?? DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+          dt: constrainHandleDt(
+            'R',
+            (d.origHandleR?.dt ?? DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+          ),
           dv: (d.origHandleR?.dv ?? 0) + rawValueDelta,
         },
       }

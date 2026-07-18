@@ -1,4 +1,5 @@
 import type { Curve, Keyframe } from '../types/timeline'
+import { constrainHandleDt, type HandleSide } from './curveHandles'
 
 const TIME_PRECISION = 12
 
@@ -9,9 +10,10 @@ function stableTime(value: number): number {
 function scaleHandle(
   handle: Keyframe['handleL'] | Keyframe['handleR'],
   scale: number,
+  side: HandleSide,
 ): Keyframe['handleL'] | undefined {
   if (!handle) return undefined
-  return { ...handle, dt: stableTime(handle.dt * scale) }
+  return { ...handle, dt: constrainHandleDt(side, stableTime(handle.dt * scale)) }
 }
 
 /** Keep every horizontal curve coordinate at the same duration-relative position. */
@@ -31,8 +33,8 @@ export function scaleCurveDuration(
         tick: stableTime(
           Math.max(0, Math.min(1, keyframe.tick / oldDuration)) * newDuration,
         ),
-        handleL: scaleHandle(keyframe.handleL, scale),
-        handleR: scaleHandle(keyframe.handleR, scale),
+        handleL: scaleHandle(keyframe.handleL, scale, 'L'),
+        handleR: scaleHandle(keyframe.handleR, scale, 'R'),
       }))
       .sort((a, b) => a.tick - b.tick),
   }

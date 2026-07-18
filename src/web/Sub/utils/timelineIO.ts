@@ -7,6 +7,14 @@ import {
   type TimelineFile,
   type TimelineState,
 } from '../types/timeline'
+import { constrainCurveHandles } from './curveHandles'
+
+function constrainMarkerHandles(marker: Marker): Marker {
+  const volumeCurve = constrainCurveHandles(marker.volumeCurve)
+  const pitchCurve = constrainCurveHandles(marker.pitchCurve)
+  if (volumeCurve === marker.volumeCurve && pitchCurve === marker.pitchCurve) return marker
+  return { ...marker, volumeCurve, pitchCurve }
+}
 
 export function serialize(state: TimelineState): string {
   const file: TimelineFile = {
@@ -14,7 +22,7 @@ export function serialize(state: TimelineState): string {
     version: 1,
     targetVersion: state.targetVersion,
     lengthTicks: getTimelineLengthTicks(state.markers),
-    markers: state.markers,
+    markers: state.markers.map(constrainMarkerHandles),
   }
   return JSON.stringify(file, null, 2)
 }
@@ -160,14 +168,19 @@ export function parse(json: string): ParseResult {
     ids.add(marker.id)
   }
 
+  const sourceMarkers = raw.markers as Marker[]
+  const markers = sourceMarkers.map(constrainMarkerHandles)
+  const handlesCorrected = markers.some((marker, index) => marker !== sourceMarkers[index])
   return {
     ok: true,
     state: {
       targetVersion: raw.targetVersion,
-      lengthTicks: getTimelineLengthTicks(raw.markers as Marker[]),
-      markers: raw.markers as Marker[],
+      lengthTicks: getTimelineLengthTicks(markers),
+      markers,
     },
-    warnings: [],
+    warnings: handlesCorrected
+      ? ['制御点の反対側にあったカーブハンドルを補正しました']
+      : [],
   }
 }
 export function _selfCheckTimelineIO(): void {
@@ -241,5 +254,25 @@ export function _selfCheckTimelineIO(): void {
     }],
   }))
   if (badCurve.ok) throw new Error('tick 順が不正なカーブを受け入れてしまった')
+
+  const crossedHandles = parse(JSON.stringify({
+    format: 'knead-project', version: 1, targetVersion: '', lengthTicks: 100,
+    markers: [{
+      id: 'crossed-handles', tick: 0, soundId: '', variantIndex: -1, volume: 1, pitch: 1,
+      duration: 20,
+      volumeCurve: {
+        keyframes: [{
+          tick: 10, value: 0.5, interpolation: 'bezier',
+          handleL: { dt: 2, dv: 0 }, handleR: { dt: -2, dv: 0 },
+        }],
+      },
+    }],
+  }))
+  if (!crossedHandles.ok) throw new Error(`交差ハンドル補正の読込失敗: ${crossedHandles.error}`)
+  const correctedKeyframe = crossedHandles.state.markers[0].volumeCurve?.keyframes[0]
+  if (correctedKeyframe?.handleL?.dt !== 0 || correctedKeyframe.handleR?.dt !== 0) {
+    throw new Error('読込時に交差ハンドルが補正されなかった')
+  }
+  if (crossedHandles.warnings.length === 0) throw new Error('交差ハンドルの補正警告がない')
   console.log('timelineIO self-check OK')
 }
