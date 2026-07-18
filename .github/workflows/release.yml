@@ -28,24 +28,24 @@ jobs:
         include:
           - name: windows-x64
             os: windows-latest
-            args: --win zip --x64
-            files: release/*.zip
+            rust-targets: x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc --bundles nsis
           - name: windows-arm64
             os: windows-11-arm
-            args: --win zip --arm64
-            files: release/*.zip
+            rust-targets: aarch64-pc-windows-msvc
+            args: --target aarch64-pc-windows-msvc --bundles nsis
           - name: macos-universal
             os: macos-latest
-            args: --mac dmg --universal
-            files: release/*.dmg
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin --bundles dmg
           - name: linux-x64
             os: ubuntu-latest
-            args: --linux AppImage --x64
-            files: release/*.AppImage
+            rust-targets: x86_64-unknown-linux-gnu
+            args: --target x86_64-unknown-linux-gnu --bundles appimage
           - name: linux-arm64
             os: ubuntu-24.04-arm
-            args: --linux AppImage --arm64
-            files: release/*.AppImage
+            rust-targets: aarch64-unknown-linux-gnu
+            args: --target aarch64-unknown-linux-gnu --bundles appimage
 
     steps:
       - name: Check out repository
@@ -57,29 +57,47 @@ jobs:
           node-version: 24.18.0
           cache: npm
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends --no-install-suggests \
+            build-essential \
+            file \
+            libayatana-appindicator3-dev \
+            libfuse2 \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
       - name: Install dependencies
         run: npm ci
 
       - name: Run self-checks
         run: npm run selfcheck
 
-      - name: Build application
-        run: npm run build
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
       - name: Package application
-        run: npx electron-builder --config builder.ts ${{ matrix.args }} --publish never
+        uses: tauri-apps/tauri-action@v1
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-
-      - name: Upload package
-        uses: actions/upload-artifact@v7
+          NODE_OPTIONS: --max-old-space-size=4096
         with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.files }}
-          if-no-files-found: error
-          retention-days: 7
+          args: ${{ matrix.args }}
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: ${{ matrix.name }}
 
   release:
     name: Publish GitHub Release
