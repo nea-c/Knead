@@ -33,7 +33,7 @@ export const Configuration = () => {
     window.myAPI.updateSettings({ holdRatingFilter: v })
   }
 
-  const appVersion = 'v' + packageJson.version
+  const appVersion = 'r' + packageJson.version
 
   return (
     <>

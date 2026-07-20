@@ -1,6 +1,6 @@
 {
   "name": "knead",
-  "version": "0.3.5",
+  "version": "3",
   "description": "Playsound generator for Minecraft",
   "author": "NeAc",
   "scripts": {
