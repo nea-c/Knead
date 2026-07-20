@@ -153,8 +153,14 @@ export const CurveEditor: React.FC<Props> = ({
       value: yToValue(e.clientY - rect.top),
       interpolation: 'linear',
     }
-    commitCurve([...kfs, newKf])
-  }, [xToTick, yToValue, kfs, commitCurve])
+    onBeginEdit()
+    try {
+      commitCurve([...kfs, newKf])
+    }
+    finally {
+      onEndEdit()
+    }
+  }, [xToTick, yToValue, kfs, commitCurve, onBeginEdit, onEndEdit])
 
   const handleKfPointerDown = useCallback((i: number) => (e: React.PointerEvent) => {
     if (e.button === 2) {
@@ -214,9 +220,15 @@ export const CurveEditor: React.FC<Props> = ({
   }, [selected])
 
   const handleApplyPreset = useCallback((preset: EasePreset) => {
-    commitCurve(applyEasePreset(kfs, selected, preset))
+    onBeginEdit()
+    try {
+      commitCurve(applyEasePreset(kfs, selected, preset))
+    }
+    finally {
+      onEndEdit()
+    }
     setContextMenu(null)
-  }, [commitCurve, kfs, selected])
+  }, [commitCurve, kfs, selected, onBeginEdit, onEndEdit])
   const handleHandlePointerDown = useCallback((i: number, side: 'L' | 'R') => (e: React.PointerEvent) => {
     e.stopPropagation()
     const kf = kfs[i]
