@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { SettingsIcon, ArrowDownAZIcon, FilterIcon } from '@yamada-ui/lucide'
-import { Drawer, DrawerHeader, DrawerBody, useDisclosure, IconButton, Switch, Text, HStack, Card, CardHeader, CardBody, VStack, Spacer, ScrollArea } from '@yamada-ui/react'
+import { DrawerRoot as Drawer, DrawerHeader, DrawerBody, useDisclosure, IconButton, Switch, Text, HStack, CardRoot as Card, CardHeader, CardBody, VStack, Spacer, ScrollArea } from '@yamada-ui/react'
 import { ThemeChange } from './ThemeChange'
 import { useTranslation } from 'react-i18next'
 import { LanguageChange } from './LanguageChange'
@@ -39,7 +39,7 @@ export const Configuration = () => {
     <>
       <IconButton onClick={onOpen} icon={<SettingsIcon fontSize="xl" />} />
 
-      <Drawer open={open} onClose={onClose} size="lg" placement="right" style={{ userSelect: 'none' }}>
+      <Drawer open={open} onClose={onClose} size="lg" placement="inline-end" style={{ userSelect: 'none' }}>
         <DrawerHeader>
           <Text>{t('settings')}</Text>
         </DrawerHeader>

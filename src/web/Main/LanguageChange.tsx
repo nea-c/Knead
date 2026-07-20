@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { SegmentedControl, SegmentedControlButton, HStack, Text, CardHeader, CardBody } from '@yamada-ui/react'
+import { SegmentedControlRoot as SegmentedControl, SegmentedControlItem as SegmentedControlButton, HStack, Text, CardHeader, CardBody } from '@yamada-ui/react'
 
 import { GlobeIcon } from '@yamada-ui/lucide'
 import { useTranslation } from 'react-i18next'

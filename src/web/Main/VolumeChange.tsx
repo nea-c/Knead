@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Volume1Icon, Volume2Icon, VolumeOffIcon, VolumeXIcon } from '@yamada-ui/lucide'
-import { Box, Flex, Slider, Toggle, useBoolean } from '@yamada-ui/react'
+import { Box, Flex, SliderRoot as Slider, Toggle, useBoolean } from '@yamada-ui/react'
 
 export const VolumeChange = () => {
   const [MuteSwitch, { toggle: toggleMute }] = useBoolean(false)
@@ -42,9 +42,9 @@ export const VolumeChange = () => {
         <Slider
           value={volumeSlider} disabled={MuteSwitch} onChange={onChangeVolumeSlider}
           marginBottom={-2} step={0.01} min={0} max={1} w={40}
-          filledTrackColor="primary" trackColor="gray.200" thumbColor="primary"
+          rangeFill="primary" trackFill="gray.200" thumbFill="primary"
           thumbSize={2.5}
-          focusThumbOnChange={false} readOnly={false}
+          readOnly={false}
           thumbProps={{
             _disabled: { color: 'primary' },
           }}

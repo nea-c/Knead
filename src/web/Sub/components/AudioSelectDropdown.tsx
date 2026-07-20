@@ -1,5 +1,5 @@
 import React, { FC, useState, useRef, useEffect, useMemo, ChangeEvent, useId } from 'react'
-import { Box, Input, ScaleFade } from '@yamada-ui/react'
+import { Box, Input, FadeScale as ScaleFade } from '@yamada-ui/react'
 import { ChevronDownIcon, XIcon } from '@yamada-ui/lucide'
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
 import {

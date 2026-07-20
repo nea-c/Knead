@@ -40,21 +40,21 @@ export const TimelineToolbar: React.FC<Props> = ({
       <Button size="sm" onClick={onSave}>保存</Button>
       <Button size="sm" onClick={onSaveAs}>名前を付けて保存</Button>
       <Box w="1px" h="20px" bg="gray.600" mx="1" />
-      <Button size="sm" onClick={onUndo} isDisabled={!canUndo} title="Ctrl+Z">↺ 元に戻す</Button>
-      <Button size="sm" onClick={onRedo} isDisabled={!canRedo} title="Ctrl+Y / Ctrl+Shift+Z">↻ やり直し</Button>
+      <Button size="sm" onClick={onUndo} disabled={!canUndo} title="Ctrl+Z">↺ 元に戻す</Button>
+      <Button size="sm" onClick={onRedo} disabled={!canRedo} title="Ctrl+Y / Ctrl+Shift+Z">↻ やり直し</Button>
       <Box w="1px" h="20px" bg="gray.600" mx="1" />
       <Button
         size="sm"
         colorScheme={preloading ? 'gray' : isPlaying ? 'red' : 'green'}
         onClick={onTogglePlay}
-        isDisabled={preloading}
+        disabled={preloading}
       >
         {preloading ? '読込中…' : (isPlaying ? '⏸一時停止' : '▶再生')}
       </Button>
-      <Button size="sm" onClick={onStop} isDisabled={currentTick <= 0}>■リセット</Button>
+      <Button size="sm" onClick={onStop} disabled={currentTick <= 0}>■リセット</Button>
       <Box w="1px" h="20px" bg="gray.600" mx="1" />
       <Button size="sm" colorScheme="blue" onClick={onAddMarker}>+ マーカー追加</Button>
-      <Button size="sm" colorScheme="red" onClick={onDeleteSelected} isDisabled={!canDelete}>削除</Button>
+      <Button size="sm" colorScheme="red" onClick={onDeleteSelected} disabled={!canDelete}>削除</Button>
       <Box w="1px" h="20px" bg="gray.600" mx="1" />
       <SubVolumeControl
         volume={volume}

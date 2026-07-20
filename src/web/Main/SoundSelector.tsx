@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAddDispatch, useAppSelector } from '../../store/_store'
-import { Box, Flex, IconButton, Input, InputGroup, InputLeftElement, InputRightElement, Menu, MenuButton, MenuGroup, MenuItem, MenuList, MenuOptionGroup, MenuOptionItem, MenuSeparator, Spacer, Toggle, useColorModeValue } from '@yamada-ui/react'
+import { Box, Flex, IconButton, Input, InputGroupRoot as InputGroup, InputElement as InputLeftElement, InputElement as InputRightElement, MenuRoot as Menu, MenuTrigger as MenuButton, MenuGroup, MenuItem, MenuContent as MenuList, MenuOptionGroup, MenuOptionItem, MenuSeparator, Spacer, Toggle, useColorModeValue } from '@yamada-ui/react'
 import { ArrowDownAZIcon, FilterIcon, SearchIcon, SquareCheckBigIcon, XIcon } from '@yamada-ui/lucide'
 import { useVirtualScroll } from '../../hooks/useVirtualScroll'
 import { RatingStars } from './RatingStars'
@@ -211,6 +211,7 @@ export const SoundSelector = () => {
           <Input value={searchTxt} onChange={onChangeSearchWord} placeholder={t('search_sound_id')} />
           <InputRightElement
             clickable
+            placement="end"
             onClick={() => {
               setTxtFilters([])
               setSearchTxt('')
@@ -222,7 +223,7 @@ export const SoundSelector = () => {
 
         <Spacer minW={2} />
 
-        <Menu animation="top" gutter={0}>
+        <Menu gutter={0}>
           <MenuButton as={IconButton} icon={<ArrowDownAZIcon fontSize="xl" />} variant="outline" borderColor="inherit" />
 
           <MenuList className="menu-list-no-style">
@@ -240,10 +241,10 @@ export const SoundSelector = () => {
         </Menu>
         <Spacer minW={2} />
 
-        <Menu animation="top" gutter={0} closeOnSelect={false}>
+        <Menu gutter={0} closeOnSelect={false}>
           <MenuButton
             as={Toggle}
-            selected={ratingFilter?.some(v => v >= 0 ? true : false)}
+            checked={ratingFilter?.some(v => v >= 0 ? true : false)}
             icon={<FilterIcon fontSize="xl" />}
             variant="outline"
             colorScheme="primary"
@@ -251,8 +252,14 @@ export const SoundSelector = () => {
 
           <MenuList className="menu-list-no-style">
             <MenuGroup label={t('rating_filter')}>
-              <MenuItem onClick={() => clearRatingFilters()} icon={<XIcon fontSize="lg" />}>{t('clear_filter')}</MenuItem>
-              <MenuItem onClick={() => allOnRatingFilters()} icon={<SquareCheckBigIcon fontSize="lg" />}>{t('all_on_filter')}</MenuItem>
+              <MenuItem onClick={() => clearRatingFilters()}>
+                <XIcon fontSize="lg" />
+                {t('clear_filter')}
+              </MenuItem>
+              <MenuItem onClick={() => allOnRatingFilters()}>
+                <SquareCheckBigIcon fontSize="lg" />
+                {t('all_on_filter')}
+              </MenuItem>
               <MenuSeparator />
 
               <MenuOptionGroup

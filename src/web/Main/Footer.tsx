@@ -1,4 +1,4 @@
-import { Box, Flex, IconButton, Input, NumberInput, Select, SelectItem, Separator, Slider, Spacer, Text, Toggle, Tooltip, useBoolean, useClipboard } from '@yamada-ui/react'
+import { Box, Flex, IconButton, Input, NumberInput, SelectRoot as Select, Separator, SliderRoot as Slider, Spacer, Text, Toggle, Tooltip, useBoolean, useClipboard, type ComboboxItem as SelectItem } from '@yamada-ui/react'
 import { FaPlay, FaPause, FaArrowRotateLeft } from 'react-icons/fa6'
 import { CheckIcon, CopyIcon, SlashIcon, MegaphoneOffIcon } from '@yamada-ui/lucide'
 import { PiTildeBold, PiCaretUpBold, PiSelectionBold } from 'react-icons/pi'
@@ -89,7 +89,7 @@ export const Footer = () => {
     },
   ]
 
-  const { onCopy, hasCopied } = useClipboard()
+  const { onCopy, copied: hasCopied } = useClipboard()
   // シークバー
   const [seekbar, setSeekbar] = useState(0)
 
@@ -267,9 +267,9 @@ export const Footer = () => {
               value={seekbar}
               onChange={onChangeSeekbar}
               step={0.01} min={0} max={100}
-              filledTrackColor="primary" trackColor="gray.200" thumbColor="primary"
+              rangeFill="primary" trackFill="gray.200" thumbFill="primary"
               thumbSize={2.5}
-              focusThumbOnChange={false} readOnly={false}
+              readOnly={false}
               thumbProps={{
                 _disabled: { color: 'primary' },
               }}
@@ -295,48 +295,48 @@ export const Footer = () => {
           </Flex>
 
           <Flex w="full" marginTop={1} style={{ userSelect: 'none' }}>
-            <Tooltip label={t('add_slash')} placement="bottom" animation="top">
+            <Tooltip content={t('add_slash')} placement="end">
               <Toggle variant="outline" colorScheme="primary" icon={<SlashIcon fontSize="xl" />} onClick={toggleSlash} />
             </Tooltip>
             <Spacer maxW={1} />
-            <Tooltip label={t('play_source')} placement="bottom" animation="top">
-              <Select value={PlaySource} disabled={!isTargetVersion15w49aOrHigher} items={PlaySourceItems} onChange={onChangePlaySource} placeholderInOptions={false} w={32} animation="bottom" listProps={{ padding: 0, margin: 0 }} />
+            <Tooltip content={t('play_source')} placement="end">
+              <Select value={PlaySource} disabled={!isTargetVersion15w49aOrHigher} items={PlaySourceItems} onChange={onChangePlaySource} w={32} animation="bottom" contentProps={{ padding: 0, margin: 0 }} />
             </Tooltip>
             <Spacer />
-            <Tooltip label={t('max_volume')} placement="bottom" animation="top">
+            <Tooltip content={t('max_volume')} placement="end">
               <NumberInput onChange={onChangeMaxVolumeInput} w={32} defaultValue={1.0} precision={2} min={0.0} step={0.1} />
             </Tooltip>
             <Spacer maxW={1} />
-            <Tooltip label={t('min_volume')} placement="bottom" animation="top">
+            <Tooltip content={t('min_volume')} placement="end">
               <NumberInput onChange={onChangeMinVolumeInput} w={20} defaultValue={0.0} precision={2} min={0.0} max={1.0} step={0.1} />
             </Tooltip>
           </Flex>
 
           <Flex w="full" marginTop={1} style={{ userSelect: 'none' }}>
-            <Tooltip label={t('coordinate')} placement="bottom" animation="top">
+            <Tooltip content={t('coordinate')} placement="end">
               <Input value={Coordinate} onChange={onChangeCoordinate} invalid={CoordinateError} w="calc(full - xs)" placeholder={t('coordinate')} />
             </Tooltip>
             <Spacer maxW={10} />
-            <Tooltip label={t('tilde_symbol')} placement="bottom" animation="top">
+            <Tooltip content={t('tilde_symbol')} placement="end">
               <IconButton onClick={onClickTilde} icon={<PiTildeBold size={20} />} variant="outline" borderColor="inherit" />
             </Tooltip>
             <Spacer maxW={1} />
-            <Tooltip label={t('caret_symbol')} placement="bottom" animation="top">
+            <Tooltip content={t('caret_symbol')} placement="end">
               <IconButton onClick={onClickCaret} icon={<PiCaretUpBold size={20} />} variant="outline" borderColor="inherit" />
             </Tooltip>
             <Spacer maxW={1} />
-            <Tooltip label={t('symbol_clear')} placement="bottom" animation="top">
+            <Tooltip content={t('symbol_clear')} placement="end">
               <IconButton onClick={onClickRemoveSymbol} icon={<PiSelectionBold size={20} />} variant="outline" borderColor="inherit" />
             </Tooltip>
           </Flex>
 
           <Flex w="full" marginTop={1} style={{ userSelect: 'none' }}>
-            <Tooltip label={t('selector')} placement="bottom" animation="top">
+            <Tooltip content={t('selector')} placement="end">
               <Input onChange={onChangeSelector} invalid={SelectorError} defaultValue="@a" w="calc(full - xs)" placeholder={t('selector')} />
             </Tooltip>
             <Spacer maxW={10} />
-            <Tooltip label={t('this_dimension_only')} placement="bottom" animation="top" maxW="full">
-              <Toggle onClick={toggleSelectorX0} variant="outline" colorScheme="primary" defaultSelected icon={<MegaphoneOffIcon fontSize="xl" />} />
+            <Tooltip content={t('this_dimension_only')} placement="end" contentProps={{ maxW: 'full' }}>
+              <Toggle onClick={toggleSelectorX0} variant="outline" colorScheme="primary" defaultChecked icon={<MegaphoneOffIcon fontSize="xl" />} />
             </Tooltip>
           </Flex>
 
@@ -345,7 +345,7 @@ export const Footer = () => {
               <Box alignContent="center" paddingX={3}>{command}</Box>
               <Spacer />
               <Box><Separator orientation="vertical" borderColor="bg" /></Box>
-              <Tooltip label={hasCopied ? 'Copied!' : 'Copy'} placement="bottom" animation="bottom">
+              <Tooltip content={hasCopied ? 'Copied!' : 'Copy'} placement="end">
                 <IconButton icon={hasCopied ? <CheckIcon color="success" marginX={6} /> : <CopyIcon marginX={6} />} onClick={() => onCopy(command)} variant="ghost" borderLeftRadius={0} borderRightRadius={2} />
               </Tooltip>
             </Flex>

@@ -14,7 +14,7 @@
     "tauri": "tauri",
     "tcm": "tcm src",
     "lint": "eslint src/** --no-error-on-unmatched-pattern --fix",
-    "selfcheck": "npx ts-node -e \"require('./src/web/Sub/utils/tickPixel')._selfCheckTickPixel(); require('./src/web/Sub/utils/timelineIO')._selfCheckTimelineIO(); require('./src/web/Sub/utils/curvePresets')._selfCheckCurvePresets(); require('./src/web/Sub/utils/curveScaling')._selfCheckCurveScaling(); require('./src/web/Sub/utils/curveHandles')._selfCheckCurveHandles(); require('./src/web/Sub/utils/projectFiles')._selfCheckProjectFiles(); require('./src/web/components/virtualSelectDropdowns.selfcheck')._selfCheckVirtualSelectDropdowns()\" && npx ts-node src/web/components/virtualSelectDropdowns.dom.selfcheck.tsx"
+    "selfcheck": "tsx -e \"import { _selfCheckTickPixel } from './src/web/Sub/utils/tickPixel'; import { _selfCheckTimelineIO } from './src/web/Sub/utils/timelineIO'; import { _selfCheckCurvePresets } from './src/web/Sub/utils/curvePresets'; import { _selfCheckCurveScaling } from './src/web/Sub/utils/curveScaling'; import { _selfCheckCurveHandles } from './src/web/Sub/utils/curveHandles'; import { _selfCheckProjectFiles } from './src/web/Sub/utils/projectFiles'; import { _selfCheckVirtualSelectDropdowns } from './src/web/components/virtualSelectDropdowns.selfcheck'; _selfCheckTickPixel(); _selfCheckTimelineIO(); _selfCheckCurvePresets(); _selfCheckCurveScaling(); _selfCheckCurveHandles(); _selfCheckProjectFiles(); _selfCheckVirtualSelectDropdowns()\" && tsx src/web/components/virtualSelectDropdowns.dom.selfcheck.tsx"
   },
   "license": "Apache-2.0",
   "devDependencies": {
@@ -43,6 +43,7 @@
     "react-router": "^7.1.1",
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.19.0",
     "webpack": "^5.97.1",

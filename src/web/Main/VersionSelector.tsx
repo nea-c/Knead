@@ -1,6 +1,6 @@
 import React from 'react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Box, HStack, Input, ScaleFade, Text } from '@yamada-ui/react'
+import { Box, HStack, Input, FadeScale as ScaleFade, Text } from '@yamada-ui/react'
 import { useAddDispatch } from '../../store/_store'
 import { Sound, updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
 import { VersionInfoType, compareReleaseVersionInfo, compareSnapshotVersionInfo, comparePreReleaseVersionInfo, compareReleaseCandidateVersionInfo, parseVersion } from '../../types/VersionInfo'

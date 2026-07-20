@@ -1,4 +1,4 @@
-import { Slider, Spacer, Tooltip, NumberInput, Select, SelectItem, Flex } from '@yamada-ui/react'
+import { SliderRoot as Slider, Spacer, Tooltip, NumberInput, SelectRoot as Select, Flex, type ComboboxItem as SelectItem } from '@yamada-ui/react'
 import React, { JSX, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -90,14 +90,14 @@ export const PitchInput = ({ pitch: safePitch, onChange }: PitchInputProps): JSX
 
   return (
     <>
-      <Tooltip label={t('pitch_input')} placement="bottom" animation="top">
+      <Tooltip content={t('pitch_input')} placement="end">
         <Flex>
           <Slider
             onChange={onChangePitchSlider} value={parseFloat(safePitch)}
             w={32} h={10} step={0.01} min={0.5} max={2}
-            filledTrackColor="gray.200" trackColor="gray.200" thumbColor="primary"
+            rangeFill="gray.200" trackFill="gray.200" thumbFill="primary"
             thumbSize={2.5}
-            focusThumbOnChange={false} readOnly={false}
+            readOnly={false}
             thumbProps={{
               _disabled: { color: 'primary' },
             }}
@@ -110,10 +110,10 @@ export const PitchInput = ({ pitch: safePitch, onChange }: PitchInputProps): JSX
         </Flex>
       </Tooltip>
       <Spacer maxW={1} />
-      <Tooltip label={t('pitch_scale')} placement="bottom" animation="top">
+      <Tooltip content={t('pitch_scale')} placement="end">
         <Select
           onChange={onChangePitchScaleMenu} items={pitchScaleItems} value={selectedPitchScale}
-          placeholderInOptions={false} w={32} animation="bottom" listProps={{ padding: 0, margin: 0 }}
+          w={32} animation="bottom" contentProps={{ padding: 0, margin: 0 }}
           id="pitchScaleItems"
         />
       </Tooltip>

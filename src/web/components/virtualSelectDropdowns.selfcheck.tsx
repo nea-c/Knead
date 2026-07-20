@@ -90,7 +90,9 @@ export function _selfCheckVirtualSelectDropdowns(): void {
   )
 
   assert.doesNotMatch(disabledVersionHtml, /data-virtual-select-status-icon="start"/)
-  assert.equal(disabledVersionHtml.match(/opacity:0\.4/g)?.length, 2)
+  assert.match(disabledVersionHtml, /<input[^>]*data-disabled=""[^>]*disabled=""/)
+  assert.match(disabledVersionHtml, /data-virtual-select-chevron="end"/)
+  assert.match(disabledVersionHtml, /opacity:0\.4/)
 
   assert.equal((virtualSelectTriggerProps as { paddingTop?: string }).paddingTop, '2px')
 
@@ -144,5 +146,6 @@ export function _selfCheckVirtualSelectDropdowns(): void {
     </UIProvider>,
   )
 
-  assert.equal(disabledHtml.match(/opacity:0\.4/g)?.length, 2)
+  assert.match(disabledHtml, /<input[^>]*disabled=""/)
+  assert.match(disabledHtml, /opacity:0\.4/)
 }

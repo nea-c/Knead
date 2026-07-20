@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useColorMode, HStack, Text, SegmentedControl, SegmentedControlButton, ColorModeWithSystem, CardBody, CardHeader } from '@yamada-ui/react'
+import { useColorMode, HStack, Text, SegmentedControlRoot as SegmentedControl, SegmentedControlItem as SegmentedControlButton, ColorModeWithSystem, CardBody, CardHeader } from '@yamada-ui/react'
 
 import { MoonIcon, PaletteIcon, SunIcon, MonitorCogIcon } from '@yamada-ui/lucide'
 import { useTranslation } from 'react-i18next'

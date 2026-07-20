@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Box, Button, Flex, NumberInput, Select, SelectItem, Slider, Text } from '@yamada-ui/react'
+import { Box, Button, Flex, NumberInput, SelectRoot as Select, SliderRoot as Slider, Text, type ComboboxItem as SelectItem } from '@yamada-ui/react'
 import {
   DEFAULT_RETRIGGER_INTERVAL,
   SINGLE_SHOT_CURVE_PREVIEW_TICKS,
@@ -118,7 +118,7 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
                   onShiftTick(tickShift)
                   setTickShift(0)
                 }}
-                isDisabled={tickShift === 0 || selectedMarkers.length === 0}
+                disabled={tickShift === 0 || selectedMarkers.length === 0}
               >
                 適用
               </Button>
@@ -157,7 +157,6 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             disabled={variants.length === 0 || isMixed(soundIdCommon)}
             w="320px"
             placeholder={isMixed(variantCommon) ? '(混在)' : undefined}
-            placeholderInOptions={false}
           />
         </Box>
 
@@ -188,9 +187,9 @@ export const TimelinePropertyPanel: React.FC<Props> = React.memo(function Timeli
             value={displayNum(pitchCommon, 0.5)}
             onChange={value => onChange({ pitch: value })}
             w="220px" h={10} step={0.01} min={0.5} max={2}
-            filledTrackColor="gray.200" trackColor="gray.200" thumbColor="primary"
+            rangeFill="gray.200" trackFill="gray.200" thumbFill="primary"
             thumbSize={2.5}
-            focusThumbOnChange={false} readOnly={false}
+            readOnly={false}
             thumbProps={{
               _disabled: { color: 'primary' },
             }}

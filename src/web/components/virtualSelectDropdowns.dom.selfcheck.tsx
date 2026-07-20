@@ -4,7 +4,7 @@ import type * as ReactTypes from 'react'
 import type { Root } from 'react-dom/client'
 import { JSDOM } from 'jsdom'
 
-const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true })
+const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true, url: 'http://localhost' })
 Object.defineProperty(dom.window, 'matchMedia', {
   configurable: true,
   value: (query: string) => ({
@@ -39,6 +39,8 @@ const globalValues = {
   window: dom.window,
   document: dom.window.document,
   navigator: dom.window.navigator,
+  localStorage: dom.window.localStorage,
+  sessionStorage: dom.window.sessionStorage,
   Node: dom.window.Node,
   Element: dom.window.Element,
   HTMLElement: dom.window.HTMLElement,
@@ -136,7 +138,7 @@ function checkVersionInteractions(): void {
 
   click(combobox)
   assert.equal(combobox.getAttribute('aria-expanded'), 'true')
-  assert.ok(mounted.container.querySelector('[data-virtual-select-popup].ui-scale-fade'))
+  assert.ok(mounted.container.querySelector('[data-virtual-select-popup].ui-fade-scale'))
   assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
   assert.equal(mounted.container.querySelectorAll('[role="option"] svg').length, 3)
 
@@ -201,7 +203,7 @@ function checkSoundInteractions(): void {
 
   click(combobox)
   assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
-  assert.ok(mounted.container.querySelector('[data-virtual-select-popup].ui-scale-fade'))
+  assert.ok(mounted.container.querySelector('[data-virtual-select-popup].ui-fade-scale'))
   assert.ok(mounted.container.querySelector('[data-virtual-select-clear]'))
   input(combobox, 'missing')
   assert.equal(combobox.getAttribute('aria-expanded'), 'true')
