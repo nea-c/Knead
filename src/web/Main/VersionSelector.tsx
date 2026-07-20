@@ -1,6 +1,6 @@
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Button, HStack, Text } from '@yamada-ui/react'
+import { Box, HStack, Input, Text } from '@yamada-ui/react'
 import { useAddDispatch } from '../../store/_store'
 import { Sound, updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
 import { VersionInfoType, compareReleaseVersionInfo, compareSnapshotVersionInfo, comparePreReleaseVersionInfo, compareReleaseCandidateVersionInfo, parseVersion } from '../../types/VersionInfo'
@@ -10,6 +10,7 @@ import { ChevronDownIcon, CircleCheckIcon, DownloadIcon } from '@yamada-ui/lucid
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
 import {
   VIRTUAL_SELECT_ITEM_HEIGHT,
+  VIRTUAL_SELECT_DISABLED_OPACITY,
   getVirtualSelectItemState,
   isVirtualSelectPopupVisible,
   virtualSelectActiveItemProps,
@@ -19,6 +20,7 @@ import {
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from '../components/virtualSelectStyles'
+import { filterVersionRows, VersionFilterRow } from '../components/virtualSelectSearch'
 
 type AssetDownloadProgress = {
   version: string
@@ -30,9 +32,7 @@ type AvailableVersion = VersionInfoType & {
   downloaded: boolean
 }
 
-type VersionRow =
-  | { type: 'heading', label: string }
-  | { type: 'version', version: AvailableVersion }
+type VersionRow = VersionFilterRow<AvailableVersion>
 
 type VersionRowData = {
   activeIndex: number
@@ -80,6 +80,7 @@ const VirtualVersionRow = React.memo(({ index, style, data }: ListChildComponent
       aria-selected={selected}
       bg={background}
       gap={2}
+      id={`version-option-${index}`}
       onClick={() => data.onSelect(row.version.raw)}
       onMouseEnter={() => data.onActivate(index)}
       role="option"
@@ -95,10 +96,12 @@ const VirtualVersionRow = React.memo(({ index, style, data }: ListChildComponent
 })
 VirtualVersionRow.displayName = 'VirtualVersionRow'
 
-const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: VirtualVersionSelectProps) => {
+export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: VirtualVersionSelectProps) => {
   const [open, setOpen] = useState(false)
+  const [inputValue, setInputValue] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<VirtualList>(null)
   const selectedVersion = useMemo(() => {
     const row = rows.find((row): row is Extract<VersionRow, { type: 'version' }> => {
@@ -107,11 +110,9 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
     return row?.version
   }, [rows, value])
 
-  const firstVersionIndex = useMemo(() => rows.findIndex(row => row.type === 'version'), [rows])
-  const selectableVersionCount = useMemo(() => rows.filter(row => row.type === 'version').length, [rows])
-  const selectedIndex = useMemo(() => rows.findIndex((row) => {
-    return row.type === 'version' && row.version.raw === value
-  }), [rows, value])
+  const filteredRows = useMemo(() => filterVersionRows(rows, inputValue), [inputValue, rows])
+  const firstVersionIndex = useMemo(() => filteredRows.findIndex(row => row.type === 'version'), [filteredRows])
+  const selectableVersionCount = useMemo(() => filteredRows.filter(row => row.type === 'version').length, [filteredRows])
   const popupVisible = isVirtualSelectPopupVisible(open, selectableVersionCount)
 
   const activate = useCallback((index: number) => {
@@ -120,12 +121,21 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
   }, [])
 
   const openList = useCallback(() => {
-    if (firstVersionIndex < 0) return
-    const nextIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, firstVersionIndex)
+    const initialRows = filterVersionRows(rows, value)
+    const initialVersionIndex = initialRows.findIndex(row => row.type === 'version')
+    if (initialVersionIndex < 0) return
+    const initialSelectedIndex = initialRows.findIndex((row) => {
+      return row.type === 'version' && row.version.raw === value
+    })
+    setInputValue(value)
+    const nextIndex = initialSelectedIndex >= 0 ? initialSelectedIndex : initialVersionIndex
     setActiveIndex(nextIndex)
     setOpen(true)
-    requestAnimationFrame(() => listRef.current?.scrollToItem(nextIndex, 'smart'))
-  }, [firstVersionIndex, selectedIndex])
+    requestAnimationFrame(() => {
+      inputRef.current?.select()
+      listRef.current?.scrollToItem(nextIndex, 'smart')
+    })
+  }, [rows, value])
 
   const selectVersion = useCallback((version: string) => {
     onChange(version)
@@ -136,10 +146,10 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
     let nextIndex = activeIndex
     do {
       nextIndex += direction
-    } while (nextIndex >= 0 && nextIndex < rows.length && rows[nextIndex].type !== 'version')
-    if (nextIndex < 0 || nextIndex >= rows.length) return
+    } while (nextIndex >= 0 && nextIndex < filteredRows.length && filteredRows[nextIndex].type !== 'version')
+    if (nextIndex < 0 || nextIndex >= filteredRows.length) return
     activate(nextIndex)
-  }, [activate, activeIndex, rows])
+  }, [activate, activeIndex, filteredRows])
 
   useEffect(() => {
     if (!open) return
@@ -153,31 +163,44 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
   }, [open])
 
   useEffect(() => {
-    if (disabled) setOpen(false)
-  }, [disabled])
+    if (disabled || !rows.some(row => row.type === 'version')) setOpen(false)
+  }, [disabled, rows])
 
   useEffect(() => {
-    if (!popupVisible) setOpen(false)
-  }, [popupVisible])
+    if (!open || firstVersionIndex < 0) return
+    if (filteredRows[activeIndex]?.type !== 'version') {
+      activate(firstVersionIndex)
+    }
+  }, [activate, activeIndex, filteredRows, firstVersionIndex, open])
 
   const rowData = useMemo<VersionRowData>(() => ({
     activeIndex,
-    rows,
+    rows: filteredRows,
     selectedVersion: value,
     onActivate: activate,
     onSelect: selectVersion,
-  }), [activeIndex, activate, rows, selectVersion, value])
+  }), [activeIndex, activate, filteredRows, selectVersion, value])
 
   return (
     <Box ref={containerRef} position="relative" width="14rem" zIndex={popupVisible ? 100 : undefined}>
-      <Button
+      <Input
         {...virtualSelectTriggerProps}
+        ref={inputRef}
+        aria-activedescendant={open && filteredRows[activeIndex]?.type === 'version' ? `version-option-${activeIndex}` : undefined}
+        aria-autocomplete="list"
+        aria-controls="version-listbox"
         aria-expanded={popupVisible}
         aria-haspopup="listbox"
+        cursor={disabled ? 'not-allowed' : 'pointer'}
         disabled={disabled}
-        endIcon={<ChevronDownIcon aria-hidden transform={popupVisible ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />}
-        justifyContent="space-between"
+        pe="8"
+        ps={selectedVersion ? '8' : '3'}
         onClick={() => open ? setOpen(false) : openList()}
+        onChange={(event) => {
+          setInputValue(event.target.value)
+          setActiveIndex(0)
+          if (!open) setOpen(true)
+        }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
@@ -190,7 +213,7 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
           }
           else if (event.key === 'Enter' && open) {
             event.preventDefault()
-            const row = rows[activeIndex]
+            const row = filteredRows[activeIndex]
             if (row?.type === 'version') selectVersion(row.version.raw)
           }
           else if (event.key === 'Escape' && open) {
@@ -198,19 +221,33 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
             setOpen(false)
           }
         }}
-        variant="unstyled"
-        width="full"
+        placeholder={placeholder}
+        readOnly={disabled}
+        role="combobox"
+        value={open ? inputValue : value}
+      />
+      {selectedVersion && (
+        <Box aria-hidden left="3" pointerEvents="none" position="absolute" top="50%" transform="translateY(-50%)">
+          <VersionStatusIcon downloaded={selectedVersion.downloaded} />
+        </Box>
+      )}
+      <Box
+        aria-hidden
+        color={['blackAlpha.600', 'whiteAlpha.700']}
+        data-virtual-select-chevron="true"
+        opacity={disabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
+        pointerEvents="none"
+        position="absolute"
+        right="2"
+        top="50%"
+        transform="translateY(-50%)"
       >
-        <HStack gap={2} minW={0}>
-          {selectedVersion && <VersionStatusIcon downloaded={selectedVersion.downloaded} />}
-          <Text color={selectedVersion ? undefined : 'muted'} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-            {selectedVersion?.raw ?? placeholder}
-          </Text>
-        </HStack>
-      </Button>
+        <ChevronDownIcon transform={popupVisible ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />
+      </Box>
       {popupVisible && (
         <Box
           {...virtualSelectMenuProps}
+          id="version-listbox"
           left={0}
           overflow="hidden"
           position="absolute"
@@ -220,8 +257,8 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
           zIndex={50}
         >
           <VirtualList
-            height={Math.min(rows.length * VIRTUAL_SELECT_ITEM_HEIGHT, VERSION_LIST_HEIGHT)}
-            itemCount={rows.length}
+            height={Math.min(filteredRows.length * VIRTUAL_SELECT_ITEM_HEIGHT, VERSION_LIST_HEIGHT)}
+            itemCount={filteredRows.length}
             itemData={rowData}
             itemKey={(index, data) => {
               const row = data.rows[index]

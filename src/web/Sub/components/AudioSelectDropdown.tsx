@@ -13,6 +13,7 @@ import {
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from '../../components/virtualSelectStyles'
+import { matchesVirtualSelectQuery } from '../../components/virtualSelectSearch'
 
 interface Props {
   options: string[]
@@ -80,12 +81,7 @@ export const AudioSelectDropdown: FC<Props> = ({
 
   // 入力値でフィルタ (空白区切り AND 検索)
   const filteredOptions = useMemo(() => {
-    const tokens = inputValue.toLowerCase().split(/\s+/).filter(Boolean)
-    if (tokens.length === 0) return options
-    return options.filter((opt) => {
-      const lower = opt.toLowerCase()
-      return tokens.every(t => lower.includes(t))
-    })
+    return options.filter(option => matchesVirtualSelectQuery(option, inputValue))
   }, [options, inputValue])
   const popupVisible = isVirtualSelectPopupVisible(open, filteredOptions.length)
 
@@ -183,6 +179,7 @@ export const AudioSelectDropdown: FC<Props> = ({
       <Box
         aria-hidden
         color={['blackAlpha.600', 'whiteAlpha.700']}
+        data-virtual-select-chevron="true"
         opacity={isDisabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
         pointerEvents="none"
         position="absolute"

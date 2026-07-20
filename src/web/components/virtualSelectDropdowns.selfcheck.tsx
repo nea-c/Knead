@@ -3,6 +3,8 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { UIProvider } from '@yamada-ui/react'
 import { AudioSelectDropdown } from '../Sub/components/AudioSelectDropdown'
+import { VirtualVersionSelect } from '../Main/VersionSelector'
+import { filterVersionRows, matchesVirtualSelectQuery } from './virtualSelectSearch'
 import {
   VIRTUAL_SELECT_DISABLED_OPACITY,
   VIRTUAL_SELECT_ITEM_HEIGHT,
@@ -16,6 +18,38 @@ import {
 } from './virtualSelectStyles'
 
 export function _selfCheckVirtualSelectDropdowns(): void {
+  const versionRows: React.ComponentProps<typeof VirtualVersionSelect>['rows'] = [
+    { type: 'heading', label: 'Release' },
+    { type: 'version', version: { raw: '1.21.1', kind: 'release', major: 1, minor: 21, patch: 1, downloaded: true } },
+    { type: 'heading', label: 'Snapshots' },
+    { type: 'version', version: { raw: '24w10a', kind: 'snapshot', year: 24, releaseNumber: 10, letter: 'a', downloaded: false } },
+    { type: 'version', version: { raw: '24w11b', kind: 'snapshot', year: 24, releaseNumber: 11, letter: 'b', downloaded: false } },
+  ]
+
+  assert.equal(matchesVirtualSelectQuery('Minecraft 1.21.1', 'minecraft 21.1'), true)
+  assert.equal(matchesVirtualSelectQuery('Minecraft 1.21.1', 'minecraft 24w'), false)
+  assert.deepEqual(filterVersionRows(versionRows, ''), versionRows)
+  assert.deepEqual(filterVersionRows(versionRows, '24w'), [
+    { type: 'heading', label: 'Snapshots' },
+    { type: 'version', version: { raw: '24w10a', kind: 'snapshot', year: 24, releaseNumber: 10, letter: 'a', downloaded: false } },
+    { type: 'version', version: { raw: '24w11b', kind: 'snapshot', year: 24, releaseNumber: 11, letter: 'b', downloaded: false } },
+  ])
+
+  const versionHtml = renderToStaticMarkup(
+    <UIProvider>
+      <VirtualVersionSelect
+        disabled={false}
+        onChange={() => undefined}
+        placeholder="Select version"
+        rows={versionRows}
+        value="1.21.1"
+      />
+    </UIProvider>,
+  )
+
+  assert.match(versionHtml, /role="combobox"/)
+  assert.match(versionHtml, /data-virtual-select-chevron="true"/)
+
   assert.equal(VIRTUAL_SELECT_ITEM_HEIGHT, 36)
   assert.equal((virtualSelectItemProps as { py?: string }).py, '1.5')
   assert.equal(VIRTUAL_SELECT_DISABLED_OPACITY, 0.4)
