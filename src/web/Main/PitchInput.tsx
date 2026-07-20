@@ -95,7 +95,7 @@ export const PitchInput = ({ pitch: safePitch, onChange }: PitchInputProps): JSX
           <Slider
             onChange={onChangePitchSlider} value={parseFloat(safePitch)}
             w={32} h={10} step={0.01} min={0.5} max={2}
-            rangeFill="gray.200" trackFill="gray.200" thumbFill="primary"
+            thumbFill="primary"
             thumbSize={2.5}
             readOnly={false}
             thumbProps={{

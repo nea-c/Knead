@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAddDispatch, useAppSelector } from '../../store/_store'
-import { Box, Flex, IconButton, Input, InputGroupRoot as InputGroup, InputElement as InputLeftElement, InputElement as InputRightElement, MenuRoot as Menu, MenuTrigger as MenuButton, MenuGroup, MenuItem, MenuContent as MenuList, MenuOptionGroup, MenuOptionItem, MenuSeparator, Spacer, Toggle, useColorModeValue } from '@yamada-ui/react'
+import { Box, Flex, IconButton, Input, InputGroup, MenuRoot as Menu, MenuTrigger as MenuButton, MenuGroup, MenuItem, MenuContent as MenuList, MenuOptionGroup, MenuOptionItem, MenuSeparator, MouseIcon, Spacer, Toggle, useColorModeValue } from '@yamada-ui/react'
 import { ArrowDownAZIcon, FilterIcon, SearchIcon, SquareCheckBigIcon, XIcon } from '@yamada-ui/lucide'
 import { useVirtualScroll } from '../../hooks/useVirtualScroll'
 import { RatingStars } from './RatingStars'
@@ -203,13 +203,13 @@ export const SoundSelector = () => {
   return (
     <>
       <Flex w="full">
-        <InputGroup>
-          <InputLeftElement>
+        <InputGroup.Root>
+          <InputGroup.Element>
             <SearchIcon color="gray.500" fontSize="lg" />
-          </InputLeftElement>
+          </InputGroup.Element>
 
           <Input value={searchTxt} onChange={onChangeSearchWord} placeholder={t('search_sound_id')} />
-          <InputRightElement
+          <InputGroup.Element
             clickable
             placement="end"
             onClick={() => {
@@ -218,8 +218,8 @@ export const SoundSelector = () => {
             }}
           >
             <XIcon color="gray.500" fontSize="lg" />
-          </InputRightElement>
-        </InputGroup>
+          </InputGroup.Element>
+        </InputGroup.Root>
 
         <Spacer minW={2} />
 

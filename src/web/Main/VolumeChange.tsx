@@ -42,7 +42,7 @@ export const VolumeChange = () => {
         <Slider
           value={volumeSlider} disabled={MuteSwitch} onChange={onChangeVolumeSlider}
           marginBottom={-2} step={0.01} min={0} max={1} w={40}
-          rangeFill="primary" trackFill="gray.200" thumbFill="primary"
+          rangeFill="primary" thumbFill="primary"
           thumbSize={2.5}
           readOnly={false}
           thumbProps={{

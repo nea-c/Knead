@@ -267,7 +267,7 @@ export const Footer = () => {
               value={seekbar}
               onChange={onChangeSeekbar}
               step={0.01} min={0} max={100}
-              rangeFill="primary" trackFill="gray.200" thumbFill="primary"
+              rangeFill="primary" thumbFill="primary"
               thumbSize={2.5}
               readOnly={false}
               thumbProps={{

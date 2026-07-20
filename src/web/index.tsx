@@ -23,6 +23,7 @@ const customTheme = extendTheme({
       black: ['#141414', '#1f1f1f'],
       white: ['#f8f8f8', '#cccccc'],
       footerBackground: ['#ffffff', '#181818'],
+      primary: ['#110000', '#110000'],
     },
   },
 })

@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { SettingsIcon, ArrowDownAZIcon, FilterIcon } from '@yamada-ui/lucide'
-import { DrawerRoot as Drawer, DrawerHeader, DrawerBody, useDisclosure, IconButton, Switch, Text, HStack, CardRoot as Card, CardHeader, CardBody, VStack, Spacer, ScrollArea } from '@yamada-ui/react'
+import { Drawer, IconButton, Switch, Text, HStack, CardRoot as Card, CardHeader, CardBody, VStack, Spacer, ScrollArea } from '@yamada-ui/react'
 import { ThemeChange } from './ThemeChange'
 import { useTranslation } from 'react-i18next'
 import { LanguageChange } from './LanguageChange'
 import packageJson from '../../../package.json'
 
 export const Configuration = () => {
-  const { open, onOpen, onClose } = useDisclosure()
-
   const { t } = useTranslation()
 
   const [holdSoundsSort, setHoldSoundsSort] = useState<boolean>(false)
@@ -37,61 +35,66 @@ export const Configuration = () => {
 
   return (
     <>
-      <IconButton onClick={onOpen} icon={<SettingsIcon fontSize="xl" />} />
 
-      <Drawer open={open} onClose={onClose} size="lg" placement="inline-end" style={{ userSelect: 'none' }}>
-        <DrawerHeader>
-          <Text>{t('settings')}</Text>
-        </DrawerHeader>
+      <Drawer.Root>
+        <Drawer.OpenTrigger>
+          <IconButton>
+            <IconButton icon={<SettingsIcon fontSize="xl" />} />
+          </IconButton>
+        </Drawer.OpenTrigger>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Text>{t('settings')}</Text>
+          </Drawer.Header>
 
-        <DrawerBody>
+          <Drawer.Body>
 
-          <ScrollArea w="full" overflowY="scroll">
-            <VStack gap={2}>
-              <Card w="full" variant="outline">
-                <LanguageChange />
-              </Card>
+            <ScrollArea w="full" overflowY="scroll">
+              <VStack gap={2}>
+                <Card w="full" variant="outline">
+                  <LanguageChange />
+                </Card>
 
-              <Card w="full" variant="outline">
-                <ThemeChange />
-              </Card>
+                <Card w="full" variant="outline">
+                  <ThemeChange />
+                </Card>
 
-              <Card w="full" variant="outline">
-                <CardHeader>
-                  <HStack>
-                    <ArrowDownAZIcon fontSize="xl" />
-                    <Text>{t('sort')}</Text>
-                  </HStack>
-                </CardHeader>
-                <CardBody>
-                  <Switch checked={holdSoundsSort} onChange={() => changesetHoldSoundsSort(!holdSoundsSort)}>{t('hold_sounds_sort')}</Switch>
-                </CardBody>
-              </Card>
+                <Card w="full" variant="outline">
+                  <CardHeader>
+                    <HStack>
+                      <ArrowDownAZIcon fontSize="xl" />
+                      <Text>{t('sort')}</Text>
+                    </HStack>
+                  </CardHeader>
+                  <CardBody>
+                    <Switch checked={holdSoundsSort} onChange={() => changesetHoldSoundsSort(!holdSoundsSort)}>{t('hold_sounds_sort')}</Switch>
+                  </CardBody>
+                </Card>
 
-              <Card w="full" variant="outline">
-                <CardHeader>
-                  <HStack>
-                    <FilterIcon fontSize="xl" />
-                    <Text>{t('rating_filter')}</Text>
-                  </HStack>
-                </CardHeader>
-                <CardBody>
-                  <Switch checked={holdRatingFilter} onChange={() => changeHoldRatingFilter(!holdRatingFilter)}>{t('hold_rating_filter')}</Switch>
-                </CardBody>
-              </Card>
+                <Card w="full" variant="outline">
+                  <CardHeader>
+                    <HStack>
+                      <FilterIcon fontSize="xl" />
+                      <Text>{t('rating_filter')}</Text>
+                    </HStack>
+                  </CardHeader>
+                  <CardBody>
+                    <Switch checked={holdRatingFilter} onChange={() => changeHoldRatingFilter(!holdRatingFilter)}>{t('hold_rating_filter')}</Switch>
+                  </CardBody>
+                </Card>
 
-            </VStack>
-          </ScrollArea>
+              </VStack>
+            </ScrollArea>
 
-          <Spacer h="full" />
-          <HStack w="full">
-            <Spacer />
-            <Text>{appVersion}</Text>
-          </HStack>
+            <Spacer h="full" />
+            <HStack w="full">
+              <Spacer />
+              <Text>{appVersion}</Text>
+            </HStack>
 
-        </DrawerBody>
-
-      </Drawer>
+          </Drawer.Body>
+        </Drawer.Content>
+      </Drawer.Root>
     </>
   )
 }
