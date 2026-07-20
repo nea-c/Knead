@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { UIProvider } from '@yamada-ui/react'
 import { AudioSelectDropdown } from '../Sub/components/AudioSelectDropdown'
 import { VirtualVersionSelect } from '../Main/VersionSelector'
-import { filterVersionRows, matchesVirtualSelectQuery } from './virtualSelectSearch'
+import { filterVersionRows, getInitialVirtualSelectQuery, matchesVirtualSelectQuery } from './virtualSelectSearch'
 import {
   VIRTUAL_SELECT_DISABLED_OPACITY,
   VIRTUAL_SELECT_ITEM_HEIGHT,
@@ -26,6 +26,9 @@ export function _selfCheckVirtualSelectDropdowns(): void {
     { type: 'version', version: { raw: '24w11b', kind: 'snapshot', year: 24, releaseNumber: 11, letter: 'b', downloaded: false } },
   ]
 
+  assert.equal(getInitialVirtualSelectQuery(['1.21.1'], '1.21.1'), '1.21.1')
+  assert.equal(getInitialVirtualSelectQuery(['1.21.1'], 'stale-version'), '')
+  assert.equal(getInitialVirtualSelectQuery(['1.21.1'], ''), '')
   assert.equal(matchesVirtualSelectQuery('Minecraft 1.21.1', 'minecraft 21.1'), true)
   assert.equal(matchesVirtualSelectQuery('Minecraft 1.21.1', 'minecraft 24w'), false)
   assert.deepEqual(filterVersionRows(versionRows, ''), versionRows)
@@ -47,8 +50,23 @@ export function _selfCheckVirtualSelectDropdowns(): void {
     </UIProvider>,
   )
 
-  assert.match(versionHtml, /role="combobox"/)
-  assert.match(versionHtml, /data-virtual-select-chevron="true"/)
+  assert.match(versionHtml, /<input[^>]*role="combobox"/)
+  assert.match(versionHtml, /data-virtual-select-chevron="end"/)
+
+  const disabledVersionHtml = renderToStaticMarkup(
+    <UIProvider>
+      <VirtualVersionSelect
+        disabled
+        onChange={() => undefined}
+        placeholder="Select version"
+        rows={versionRows}
+        value="1.21.1"
+      />
+    </UIProvider>,
+  )
+
+  assert.match(disabledVersionHtml, /data-virtual-select-status-icon="start"/)
+  assert.equal(disabledVersionHtml.match(/opacity:0\.4/g)?.length, 3)
 
   assert.equal(VIRTUAL_SELECT_ITEM_HEIGHT, 36)
   assert.equal((virtualSelectItemProps as { py?: string }).py, '1.5')

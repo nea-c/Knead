@@ -8,6 +8,10 @@ export function matchesVirtualSelectQuery(candidate: string, query: string): boo
   return tokens.every(token => normalizedCandidate.includes(token))
 }
 
+export function getInitialVirtualSelectQuery(options: readonly string[], value: string): string {
+  return options.includes(value) ? value : ''
+}
+
 export function filterVersionRows<T extends { raw: string }>(
   rows: VersionFilterRow<T>[],
   query: string,

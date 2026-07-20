@@ -20,7 +20,7 @@ import {
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from '../components/virtualSelectStyles'
-import { filterVersionRows, VersionFilterRow } from '../components/virtualSelectSearch'
+import { filterVersionRows, getInitialVirtualSelectQuery, VersionFilterRow } from '../components/virtualSelectSearch'
 
 type AssetDownloadProgress = {
   version: string
@@ -121,13 +121,17 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
   }, [])
 
   const openList = useCallback(() => {
-    const initialRows = filterVersionRows(rows, value)
+    const initialQuery = getInitialVirtualSelectQuery(
+      rows.flatMap(row => row.type === 'version' ? [row.version.raw] : []),
+      value,
+    )
+    const initialRows = filterVersionRows(rows, initialQuery)
     const initialVersionIndex = initialRows.findIndex(row => row.type === 'version')
     if (initialVersionIndex < 0) return
     const initialSelectedIndex = initialRows.findIndex((row) => {
       return row.type === 'version' && row.version.raw === value
     })
-    setInputValue(value)
+    setInputValue(initialQuery)
     const nextIndex = initialSelectedIndex >= 0 ? initialSelectedIndex : initialVersionIndex
     setActiveIndex(nextIndex)
     setOpen(true)
@@ -227,14 +231,23 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
         value={open ? inputValue : value}
       />
       {selectedVersion && (
-        <Box aria-hidden left="3" pointerEvents="none" position="absolute" top="50%" transform="translateY(-50%)">
+        <Box
+          aria-hidden
+          data-virtual-select-status-icon="start"
+          left="3"
+          opacity={disabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
+          pointerEvents="none"
+          position="absolute"
+          top="50%"
+          transform="translateY(-50%)"
+        >
           <VersionStatusIcon downloaded={selectedVersion.downloaded} />
         </Box>
       )}
       <Box
         aria-hidden
         color={['blackAlpha.600', 'whiteAlpha.700']}
-        data-virtual-select-chevron="true"
+        data-virtual-select-chevron="end"
         opacity={disabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
         pointerEvents="none"
         position="absolute"
