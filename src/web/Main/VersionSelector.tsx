@@ -1,5 +1,5 @@
 import React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Box, HStack, Input, Text } from '@yamada-ui/react'
 import { useAddDispatch } from '../../store/_store'
 import { Sound, updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
@@ -36,6 +36,7 @@ type VersionRow = VersionFilterRow<AvailableVersion>
 
 type VersionRowData = {
   activeIndex: number
+  listboxId: string
   rows: VersionRow[]
   selectedVersion: string
   onActivate: (index: number) => void
@@ -80,7 +81,7 @@ const VirtualVersionRow = React.memo(({ index, style, data }: ListChildComponent
       aria-selected={selected}
       bg={background}
       gap={2}
-      id={`version-option-${index}`}
+      id={`${data.listboxId}-option-${index}`}
       onClick={() => data.onSelect(row.version.raw)}
       onMouseEnter={() => data.onActivate(index)}
       role="option"
@@ -104,6 +105,7 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<VirtualList>(null)
+  const listboxId = useId()
 
   const filteredRows = useMemo(() => filterVersionRows(rows, query), [query, rows])
   const firstVersionIndex = useMemo(() => filteredRows.findIndex(row => row.type === 'version'), [filteredRows])
@@ -177,20 +179,21 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
 
   const rowData = useMemo<VersionRowData>(() => ({
     activeIndex,
+    listboxId,
     rows: filteredRows,
     selectedVersion: value,
     onActivate: activate,
     onSelect: selectVersion,
-  }), [activeIndex, activate, filteredRows, selectVersion, value])
+  }), [activeIndex, activate, filteredRows, listboxId, selectVersion, value])
 
   return (
     <Box ref={containerRef} position="relative" width="14rem" zIndex={popupVisible ? 100 : undefined}>
       <Input
         {...virtualSelectTriggerProps}
         ref={inputRef}
-        aria-activedescendant={open && filteredRows[activeIndex]?.type === 'version' ? `version-option-${activeIndex}` : undefined}
+        aria-activedescendant={open && filteredRows[activeIndex]?.type === 'version' ? `${listboxId}-option-${activeIndex}` : undefined}
         aria-autocomplete="list"
-        aria-controls="version-listbox"
+        aria-controls={listboxId}
         aria-expanded={popupVisible}
         aria-haspopup="listbox"
         cursor={disabled ? 'not-allowed' : 'pointer'}
@@ -246,7 +249,7 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
       {popupVisible && (
         <Box
           {...virtualSelectMenuProps}
-          id="version-listbox"
+          id={listboxId}
           left={0}
           overflow="hidden"
           position="absolute"

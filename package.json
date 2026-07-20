@@ -14,7 +14,7 @@
     "tauri": "tauri",
     "tcm": "tcm src",
     "lint": "eslint src/** --no-error-on-unmatched-pattern --fix",
-    "selfcheck": "npx ts-node -e \"require('./src/web/Sub/utils/tickPixel')._selfCheckTickPixel(); require('./src/web/Sub/utils/timelineIO')._selfCheckTimelineIO(); require('./src/web/Sub/utils/curvePresets')._selfCheckCurvePresets(); require('./src/web/Sub/utils/curveScaling')._selfCheckCurveScaling(); require('./src/web/Sub/utils/curveHandles')._selfCheckCurveHandles(); require('./src/web/Sub/utils/projectFiles')._selfCheckProjectFiles(); require('./src/web/components/virtualSelectDropdowns.selfcheck')._selfCheckVirtualSelectDropdowns()\""
+    "selfcheck": "npx ts-node -e \"require('./src/web/Sub/utils/tickPixel')._selfCheckTickPixel(); require('./src/web/Sub/utils/timelineIO')._selfCheckTimelineIO(); require('./src/web/Sub/utils/curvePresets')._selfCheckCurvePresets(); require('./src/web/Sub/utils/curveScaling')._selfCheckCurveScaling(); require('./src/web/Sub/utils/curveHandles')._selfCheckCurveHandles(); require('./src/web/Sub/utils/projectFiles')._selfCheckProjectFiles(); require('./src/web/components/virtualSelectDropdowns.selfcheck')._selfCheckVirtualSelectDropdowns()\" && npx ts-node src/web/components/virtualSelectDropdowns.dom.selfcheck.tsx"
   },
   "license": "Apache-2.0",
   "devDependencies": {
@@ -22,12 +22,13 @@
     "@reduxjs/toolkit": "^2.5.0",
     "@stylistic/eslint-plugin": "^2.12.1",
     "@stylistic/eslint-plugin-js": "^2.12.1",
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/react-window": "^1.8.8",
     "@types/webaudioapi": "^0.0.27",
-    "@tauri-apps/cli": "^2.0.0",
     "cross-env": "^7.0.3",
     "css-loader": "^7.1.2",
     "eslint": "^9.17.0",
@@ -35,6 +36,7 @@
     "eslint-plugin-react-hooks": "^5.1.0",
     "globals": "^15.14.0",
     "html-webpack-plugin": "^5.6.3",
+    "jsdom": "^22.1.0",
     "mini-css-extract-plugin": "^2.9.2",
     "react-icons": "^5.4.0",
     "react-redux": "^9.2.0",

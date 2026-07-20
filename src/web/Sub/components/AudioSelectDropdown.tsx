@@ -18,6 +18,7 @@ import { matchesVirtualSelectQuery } from '../../components/virtualSelectSearch'
 interface Props {
   options: string[]
   value: string
+  ariaLabel?: string
   placeholder?: string
   onSelect: (val: string) => void
   height?: number
@@ -29,6 +30,7 @@ interface Props {
 export const AudioSelectDropdown: FC<Props> = ({
   options,
   value,
+  ariaLabel = 'Sound',
   placeholder = '',
   onSelect,
   height = 300,
@@ -133,6 +135,7 @@ export const AudioSelectDropdown: FC<Props> = ({
       <Input
         {...virtualSelectTriggerProps}
         ref={inputRef}
+        aria-label={ariaLabel}
         aria-activedescendant={open && filteredOptions[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
         aria-autocomplete="list"
         aria-controls={listboxId}

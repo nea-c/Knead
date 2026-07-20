@@ -121,6 +121,7 @@ export function _selfCheckVirtualSelectDropdowns(): void {
   assert.match(html, /aria-haspopup="listbox"/)
   assert.match(html, /aria-expanded="false"/)
   assert.match(html, /aria-controls="[^"]+"/)
+  assert.match(html, /<input[^>]*aria-label="Sound"[^>]*role="combobox"|<input[^>]*role="combobox"[^>]*aria-label="Sound"/)
 
   const disabledHtml = renderToStaticMarkup(
     <UIProvider>

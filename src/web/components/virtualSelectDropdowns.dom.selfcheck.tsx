@@ -1,0 +1,252 @@
+import assert from 'node:assert/strict'
+/* eslint-disable @typescript-eslint/no-require-imports -- ReactDOM must initialize after jsdom installs browser globals. */
+import type * as ReactTypes from 'react'
+import type { Root } from 'react-dom/client'
+import { JSDOM } from 'jsdom'
+
+const dom = new JSDOM('<!doctype html><html><body></body></html>', { pretendToBeVisual: true })
+Object.defineProperty(dom.window, 'matchMedia', {
+  configurable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }),
+})
+let nextAnimationFrameId = 0
+const animationFrames = new Map<number, FrameRequestCallback>()
+const requestAnimationFrame = (callback: FrameRequestCallback) => {
+  nextAnimationFrameId += 1
+  animationFrames.set(nextAnimationFrameId, callback)
+  return nextAnimationFrameId
+}
+const cancelAnimationFrame = (id: number) => {
+  animationFrames.delete(id)
+}
+function flushAnimationFrame(): void {
+  const callbacks = [...animationFrames.values()]
+  animationFrames.clear()
+  act(() => {
+    for (const callback of callbacks) callback(0)
+  })
+}
+const globalValues = {
+  window: dom.window,
+  document: dom.window.document,
+  navigator: dom.window.navigator,
+  Node: dom.window.Node,
+  Element: dom.window.Element,
+  HTMLElement: dom.window.HTMLElement,
+  HTMLInputElement: dom.window.HTMLInputElement,
+  Event: dom.window.Event,
+  MouseEvent: dom.window.MouseEvent,
+  KeyboardEvent: dom.window.KeyboardEvent,
+  getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
+  requestAnimationFrame,
+  cancelAnimationFrame,
+  IS_REACT_ACT_ENVIRONMENT: true,
+}
+for (const [name, value] of Object.entries(globalValues)) {
+  Object.defineProperty(globalThis, name, { configurable: true, value, writable: true })
+}
+
+const React = require('react') as typeof import('react')
+const { act } = React
+const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
+const { UIProvider } = require('@yamada-ui/react') as typeof import('@yamada-ui/react')
+const { VirtualVersionSelect } = require('../Main/VersionSelector') as typeof import('../Main/VersionSelector')
+const { AudioSelectDropdown } = require('../Sub/components/AudioSelectDropdown') as typeof import('../Sub/components/AudioSelectDropdown')
+
+const versionRows: ReactTypes.ComponentProps<typeof VirtualVersionSelect>['rows'] = [
+  { type: 'heading', label: 'Release' },
+  { type: 'version', version: { raw: '1.21.1', kind: 'release', major: 1, minor: 21, patch: 1, downloaded: true } },
+  { type: 'heading', label: 'Snapshots' },
+  { type: 'version', version: { raw: '24w10a', kind: 'snapshot', year: 24, releaseNumber: 10, letter: 'a', downloaded: false } },
+  { type: 'version', version: { raw: '24w11b', kind: 'snapshot', year: 24, releaseNumber: 11, letter: 'b', downloaded: false } },
+]
+
+function click(element: Element): void {
+  act(() => {
+    element.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+  })
+}
+
+function keyDown(element: Element, key: string): void {
+  act(() => {
+    element.dispatchEvent(new window.KeyboardEvent('keydown', { bubbles: true, key }))
+  })
+}
+
+function input(element: HTMLInputElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+  assert.ok(setter)
+  act(() => {
+    setter.call(element, value)
+    element.dispatchEvent(new window.Event('input', { bubbles: true }))
+  })
+}
+
+function mount(element: ReactTypes.ReactNode): { container: HTMLDivElement, root: Root, unmount: () => void } {
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  act(() => root.render(<UIProvider>{element}</UIProvider>))
+  return {
+    container,
+    root,
+    unmount: () => {
+      act(() => root.unmount())
+      container.remove()
+    },
+  }
+}
+
+function getCombobox(container: Element): HTMLInputElement {
+  const combobox = container.querySelector<HTMLInputElement>('input[role="combobox"]')
+  assert.ok(combobox)
+  return combobox
+}
+
+function checkVersionInteractions(): void {
+  let selected = ''
+  const mounted = mount(
+    <VirtualVersionSelect
+      disabled={false}
+      onChange={(version) => { selected = version }}
+      placeholder="Select version"
+      rows={versionRows}
+      value="1.21.1"
+    />,
+  )
+  const combobox = getCombobox(mounted.container)
+
+  click(combobox)
+  assert.equal(combobox.getAttribute('aria-expanded'), 'true')
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
+  assert.equal(mounted.container.querySelectorAll('[role="option"] svg').length, 3)
+
+  keyDown(combobox, 'ArrowDown')
+  assert.match(combobox.getAttribute('aria-activedescendant') ?? '', /option-3$/)
+  keyDown(combobox, 'Enter')
+  assert.equal(selected, '24w10a')
+  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+
+  click(combobox)
+  input(combobox, '24w11')
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 1)
+  assert.match(mounted.container.querySelector('[role="option"]')?.textContent ?? '', /24w11b/)
+  keyDown(combobox, 'Escape')
+  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  mounted.unmount()
+
+  const stale = mount(
+    <VirtualVersionSelect
+      disabled={false}
+      onChange={() => undefined}
+      placeholder="Select version"
+      rows={versionRows}
+      value="stale-version"
+    />,
+  )
+  const staleCombobox = getCombobox(stale.container)
+  click(staleCombobox)
+  assert.equal(staleCombobox.value, '')
+  assert.equal(stale.container.querySelectorAll('[role="option"]').length, 3)
+  stale.unmount()
+}
+
+function checkSoundInteractions(): void {
+  const options = [
+    'minecraft:block.note_block.harp',
+    'minecraft:block.note_block.bell',
+    'minecraft:block.note_block.bass',
+  ]
+  const selections: string[] = []
+  const mounted = mount(
+    <AudioSelectDropdown
+      onSelect={value => selections.push(value)}
+      options={options}
+      value=""
+    />,
+  )
+  const combobox = getCombobox(mounted.container)
+
+  click(combobox)
+  input(combobox, 'bell')
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 1)
+  click(mounted.container.querySelector('[role="option"]') as Element)
+  assert.deepEqual(selections, ['minecraft:block.note_block.bell'])
+
+  click(combobox)
+  keyDown(combobox, 'ArrowDown')
+  keyDown(combobox, 'Enter')
+  assert.deepEqual(selections, [
+    'minecraft:block.note_block.bell',
+    'minecraft:block.note_block.bell',
+  ])
+
+  click(combobox)
+  keyDown(combobox, 'Escape')
+  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  click(combobox)
+  act(() => {
+    document.body.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }))
+  })
+  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  mounted.unmount()
+
+  let handled = 0
+  const focused = mount(
+    <AudioSelectDropdown
+      focusRequest={1}
+      onFocusRequestHandled={() => { handled += 1 }}
+      onSelect={() => undefined}
+      options={options}
+      value="minecraft:block.note_block.harp"
+    />,
+  )
+  const focusedCombobox = getCombobox(focused.container)
+  flushAnimationFrame()
+  assert.equal(document.activeElement, focusedCombobox)
+  assert.equal(focusedCombobox.getAttribute('aria-expanded'), 'true')
+  assert.equal(handled, 1)
+  focused.unmount()
+}
+
+function checkVersionInstanceIds(): void {
+  const mounted = mount(
+    <>
+      <VirtualVersionSelect disabled={false} onChange={() => undefined} placeholder="One" rows={versionRows} value="1.21.1" />
+      <VirtualVersionSelect disabled={false} onChange={() => undefined} placeholder="Two" rows={versionRows} value="24w10a" />
+    </>,
+  )
+  const comboboxes = [...mounted.container.querySelectorAll<HTMLInputElement>('input[role="combobox"]')]
+  assert.equal(comboboxes.length, 2)
+  const controls = comboboxes.map(combobox => combobox.getAttribute('aria-controls'))
+  assert.equal(new Set(controls).size, 2)
+  for (const combobox of comboboxes) click(combobox)
+  const listboxIds = [...mounted.container.querySelectorAll('[role="listbox"]')].map(listbox => listbox.id)
+  assert.equal(listboxIds.length, 2)
+  assert.equal(new Set(listboxIds).size, 2)
+  const optionIds = [...mounted.container.querySelectorAll('[role="option"]')].map(option => option.id)
+  assert.equal(new Set(optionIds).size, optionIds.length)
+  mounted.unmount()
+}
+
+function selfCheckVirtualSelectDropdownDom(): void {
+  try {
+    checkVersionInteractions()
+    checkSoundInteractions()
+    checkVersionInstanceIds()
+  }
+  finally {
+    dom.window.close()
+  }
+}
+
+selfCheckVirtualSelectDropdownDom()
