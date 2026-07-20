@@ -24,6 +24,8 @@ export interface Marker {
   retriggerInterval?: Tick
   volumeCurve?: Curve
   pitchCurve?: Curve
+  /** Timeline track Y coordinate. Undefined means automatic lane placement. */
+  trackY?: number
 }
 
 export interface TimelineState {
@@ -38,3 +40,39 @@ export interface TimelineFile extends TimelineState {
 }
 
 export const DEFAULT_TIMELINE_LENGTH_TICKS = 200
+export const TIMELINE_TAIL_PADDING_TICKS = 200
+export const DEFAULT_RETRIGGER_INTERVAL = 1
+export const SINGLE_SHOT_CURVE_PREVIEW_TICKS = 20
+export const TIMELINE_TRACK_HEIGHT = 120
+export const TIMELINE_MARKER_SIZE = 16
+
+export function getTimelineLengthTicks(
+  markers: ReadonlyArray<Pick<Marker, 'tick' | 'duration'>>,
+): number {
+  const lastMarkerEnd = markers.reduce((latest, marker) => (
+    Math.max(latest, marker.tick + Math.max(0, marker.duration ?? 0))
+  ), 0)
+  return Math.max(
+    DEFAULT_TIMELINE_LENGTH_TICKS,
+    Math.ceil(lastMarkerEnd + TIMELINE_TAIL_PADDING_TICKS),
+  )
+}
+
+export function getTimelineTrackHeight(markers: Marker[]): number {
+  const countByTick = new Map<number, number>()
+  let maxAtSameTick = 0
+  let manualBottom = 0
+  for (const marker of markers) {
+    const count = (countByTick.get(marker.tick) ?? 0) + 1
+    countByTick.set(marker.tick, count)
+    maxAtSameTick = Math.max(maxAtSameTick, count)
+    if (marker.trackY !== undefined) {
+      manualBottom = Math.max(manualBottom, marker.trackY + TIMELINE_MARKER_SIZE / 2)
+    }
+  }
+  return Math.max(
+    TIMELINE_TRACK_HEIGHT,
+    maxAtSameTick * TIMELINE_MARKER_SIZE + TIMELINE_MARKER_SIZE,
+    Math.ceil(manualBottom),
+  )
+}

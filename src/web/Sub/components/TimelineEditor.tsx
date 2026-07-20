@@ -1,7 +1,7 @@
 // src/web/Sub/components/TimelineEditor.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box } from '@yamada-ui/react'
-import type { Marker } from '../types/timeline'
+import { getTimelineTrackHeight, type Marker } from '../types/timeline'
 import { useTimeline } from '../hooks/useTimeline'
 import { useAudioBufferCache } from '../hooks/useAudioBufferCache'
 import { useTimelinePlayback } from '../hooks/useTimelinePlayback'
@@ -13,9 +13,12 @@ import { TimelineTrack, SelectModifiers } from './TimelineTrack'
 import { TimelinePlayhead } from './TimelinePlayhead'
 import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
 import { TimelinePropertyPanel } from './TimelinePropertyPanel'
+import type { TimelineOpenResult } from '../../../../@types/global'
+import { findKneadProjectPath } from '../utils/projectFiles'
 
 interface Props {
   defaultSoundId?: string
+  currentTargetVersion?: string
 }
 
 interface ClipboardItem {
@@ -23,13 +26,15 @@ interface ClipboardItem {
   data: Omit<Marker, 'id' | 'tick'>
 }
 
-export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
+export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetVersion }) => {
   const timeline = useTimeline()
   const { soundIdList, soundMap } = useAudioLibrary()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [soundFocusRequest, setSoundFocusRequest] = useState(0)
   const anchorRef = useRef<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [isProjectDragOver, setIsProjectDragOver] = useState(false)
   const clipboardRef = useRef<ClipboardItem[]>([])
   const cache = useAudioBufferCache()
   const [subVolume, setSubVolume] = useState<number>(() => {
@@ -57,6 +62,13 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     setDirty(true)
   }, [timeline.state])
 
+  // SubApp の設定読込は非同期なので、空の新規プロジェクトに限って保存対象バージョンを補完する。
+  useEffect(() => {
+    if (!currentTargetVersion || timeline.state.targetVersion || filePath) return
+    skipDirtyRef.current = true
+    timeline.setTargetVersion(currentTargetVersion)
+  }, [currentTargetVersion, filePath, timeline])
+
   // ウィンドウタイトルに未保存マーク * を反映
   useEffect(() => {
     const name = filePath ? filePath.replace(/^.*[\\\/]/, '') : '(未保存)'
@@ -77,16 +89,19 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     const id = timeline.addMarker({ tick, soundId: defaultSoundId ?? '' })
     setSelectedIds(new Set([id]))
     anchorRef.current = id
+    setSoundFocusRequest(request => request + 1)
   }, [timeline, defaultSoundId])
 
   const handleAddAtPlayhead = useCallback(() => {
     handleAddAtTick(Math.round(playback.currentTick))
   }, [handleAddAtTick, playback.currentTick])
+  const handleSoundFocusHandled = useCallback(() => setSoundFocusRequest(0), [])
 
   const sortedMarkers = useMemo(
     () => [...timeline.state.markers].sort((a, b) => a.tick - b.tick),
     [timeline.state.markers],
   )
+  const validSoundIds = useMemo(() => new Set(soundIdList), [soundIdList])
 
   const handleMarkerClick = useCallback((id: string, mods: SelectModifiers) => {
     setSelectedIds((prev) => {
@@ -134,10 +149,13 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     timeline.beginTransaction()
   }, [timeline])
 
-  const handleMoveMarkers = useCallback((deltas: Map<string, number>) => {
-    timeline.moveMarkers(deltas)
+  const handleMoveMarkers = useCallback((positions: Map<string, { tick: number, trackY?: number }>) => {
+    timeline.moveMarkersOnTrack(positions)
   }, [timeline])
 
+  const handleResizeMarker = useCallback((id: string, tick: number, duration: number) => {
+    timeline.updateMarker(id, { tick, duration })
+  }, [timeline])
   const handleEndMove = useCallback(() => {
     timeline.commitTransaction()
   }, [timeline])
@@ -176,9 +194,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     return window.confirm('未保存の変更があります。破棄しますか？')
   }, [dirty])
 
-  const handleOpen = useCallback(async () => {
-    if (!confirmDiscardIfDirty()) return
-    const res = await window.myAPI.timeline.openDialog()
+  const applyProjectResult = useCallback(async (res: TimelineOpenResult) => {
     if (!res.ok) {
       if ('canceled' in res) return
       window.alert(`読込エラー: ${res.error}`)
@@ -189,18 +205,120 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
       window.alert(`読込エラー: ${parsed.error}`)
       return
     }
+    const pathResult = await window.myAPI.timeline.setCurrentPath(res.path)
+    if (!pathResult.ok) {
+      window.alert(`読込エラー: ${pathResult.error}`)
+      return
+    }
     skipDirtyRef.current = true
     timeline.replaceAll(parsed.state)
-    setFilePath(res.path)
+    setFilePath(pathResult.path)
     setSelectedIds(new Set())
     anchorRef.current = null
     setDirty(false)
-    if (parsed.warnings.length > 0) window.alert(`警告:\n${parsed.warnings.join('\n')}`)
-  }, [timeline, confirmDiscardIfDirty])
+    const warnings = [...parsed.warnings]
+    if (currentTargetVersion && parsed.state.targetVersion !== currentTargetVersion) {
+      warnings.push(`このプロジェクトは Minecraft ${parsed.state.targetVersion || '(未指定)'} 用です。現在の選択は ${currentTargetVersion} です。`)
+    }
+    const missingSoundIds = Array.from(new Set(
+      parsed.state.markers
+        .map(marker => marker.soundId)
+        .filter(soundId => soundId && !soundMap[soundId]),
+    ))
+    if (missingSoundIds.length > 0) {
+      warnings.push(`現在のバージョンに存在しない soundId: ${missingSoundIds.join(', ')}`)
+    }
+    if (warnings.length > 0) window.alert(`警告:\n${warnings.join('\n')}`)
+  }, [timeline, currentTargetVersion, soundMap])
+
+  const projectOpenInProgressRef = useRef(false)
+  const openProjectPath = useCallback(async (path: string) => {
+    if (projectOpenInProgressRef.current || !confirmDiscardIfDirty()) return
+    projectOpenInProgressRef.current = true
+    try {
+      await applyProjectResult(await window.myAPI.timeline.openPath(path))
+    }
+    catch (error) {
+      window.alert(`読込エラー: ${String(error)}`)
+    }
+    finally {
+      projectOpenInProgressRef.current = false
+    }
+  }, [applyProjectResult, confirmDiscardIfDirty])
+
+  const openProjectPathRef = useRef(openProjectPath)
+  openProjectPathRef.current = openProjectPath
+
+  useEffect(() => {
+    let disposed = false
+    let unlistenOpen: (() => void) | undefined
+    let unlistenDrop: (() => void) | undefined
+
+    const consumeOpenRequest = async () => {
+      try {
+        const path = await window.myAPI.timeline.takeOpenRequest()
+        if (path && !disposed) await openProjectPathRef.current(path)
+      }
+      catch (error) {
+        if (!disposed) window.alert(`読込エラー: ${String(error)}`)
+      }
+    }
+
+    void window.myAPI.timeline.onOpenRequested(() => {
+      void consumeOpenRequest()
+    })
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else {
+          unlistenOpen = unlisten
+          void consumeOpenRequest()
+        }
+      })
+      .catch(error => console.error('project open listener failed', error))
+
+    void window.myAPI.timeline.onDragDrop((event) => {
+      if (event.type === 'enter') {
+        setIsProjectDragOver(findKneadProjectPath(event.paths) !== undefined)
+      }
+      else if (event.type === 'leave') {
+        setIsProjectDragOver(false)
+      }
+      else if (event.type === 'drop') {
+        setIsProjectDragOver(false)
+        const projectPath = findKneadProjectPath(event.paths)
+        if (projectPath) void openProjectPathRef.current(projectPath)
+      }
+    })
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else unlistenDrop = unlisten
+      })
+      .catch(error => console.error('project drag-and-drop listener failed', error))
+
+    return () => {
+      disposed = true
+      unlistenOpen?.()
+      unlistenDrop?.()
+    }
+  }, [])
+
+  const handleOpen = useCallback(async () => {
+    if (projectOpenInProgressRef.current || !confirmDiscardIfDirty()) return
+    projectOpenInProgressRef.current = true
+    try {
+      await applyProjectResult(await window.myAPI.timeline.openDialog())
+    }
+    catch (error) {
+      window.alert(`読込エラー: ${String(error)}`)
+    }
+    finally {
+      projectOpenInProgressRef.current = false
+    }
+  }, [applyProjectResult, confirmDiscardIfDirty])
 
   const handleSaveAs = useCallback(async () => {
     const json = serialize(timeline.state)
-    const res = await window.myAPI.timeline.saveDialog(filePath ?? 'timeline.kp', json)
+    const res = await window.myAPI.timeline.saveDialog(filePath ?? 'untitled.kp', json)
     if (!res.ok) {
       if ('canceled' in res) return
       window.alert(`保存エラー: ${res.error}`)
@@ -211,8 +329,17 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
   }, [timeline.state, filePath])
 
   const handleSave = useCallback(async () => {
-    await handleSaveAs()
-  }, [handleSaveAs])
+    if (!filePath) {
+      await handleSaveAs()
+      return
+    }
+    const res = await window.myAPI.timeline.save(serialize(timeline.state))
+    if (!res.ok) {
+      window.alert(`保存エラー: ${res.error}`)
+      return
+    }
+    setDirty(false)
+  }, [filePath, handleSaveAs, timeline.state])
 
   // キーボードショートカット
   const latestRef = useRef({
@@ -330,21 +457,42 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
     if (selectedIds.size === 0 || delta === 0) return
     const selMarkers = timeline.state.markers.filter(m => selectedIds.has(m.id))
     if (selMarkers.length === 0) return
-    const maxTick = Math.max(0, timeline.state.lengthTicks - 1)
     const minCur = Math.min(...selMarkers.map(m => m.tick))
-    const maxCur = Math.max(...selMarkers.map(m => m.tick))
-    const clamped = Math.max(-minCur, Math.min(delta, maxTick - maxCur))
+    const clamped = Math.max(-minCur, delta)
     if (clamped === 0) return
     const deltas = new Map<string, number>()
     for (const m of selMarkers) deltas.set(m.id, m.tick + clamped)
     timeline.moveMarkers(deltas)
   }, [selectedIds, timeline])
 
+  const trackHeight = getTimelineTrackHeight(timeline.state.markers)
   const contentWidth = tickToPx(timeline.state.lengthTicks, pxPerTick)
-  const trackAreaHeight = 24 + 64
+  const trackAreaHeight = 24 + trackHeight
 
   return (
-    <Box display="flex" flexDir="column" h="100vh" bg="gray.950">
+    <Box display="flex" flexDir="column" h="100vh" bg="gray.950" position="relative">
+      {isProjectDragOver && (
+        <Box
+          position="absolute"
+          top="0"
+          right="0"
+          bottom="0"
+          left="0"
+          zIndex="1000"
+          pointerEvents="none"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bg="rgba(0, 0, 0, 0.72)"
+          border="3px dashed"
+          borderColor="blue.400"
+          color="white"
+          fontSize="xl"
+          fontWeight="bold"
+        >
+          .kp ファイルをドロップして開く
+        </Box>
+      )}
       <TimelineToolbar
         onAddMarker={handleAddAtPlayhead}
         onDeleteSelected={handleDeleteSelected}
@@ -381,6 +529,8 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
           />
           <TimelineTrack
             markers={sortedMarkers}
+            trackHeight={trackHeight}
+            validSoundIds={validSoundIds}
             lengthTicks={timeline.state.lengthTicks}
             pxPerTick={pxPerTick}
             selectedIds={selectedIds}
@@ -389,6 +539,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
             onRectangleSelect={handleRectangleSelect}
             onBeginMove={handleBeginMove}
             onMoveMarkers={handleMoveMarkers}
+            onResizeMarker={handleResizeMarker}
             onEndMove={handleEndMove}
             onAddMarker={handleAddAtTick}
           />
@@ -403,11 +554,14 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId }) => {
         marker={singleSelected}
         selectionCount={selectedIds.size}
         selectedMarkers={selectedMarkers}
-        lengthTicks={timeline.state.lengthTicks}
         soundIdList={soundIdList}
         variants={variants}
         onChange={handlePanelChange}
         onShiftTick={handleShiftTick}
+        onBeginEdit={timeline.beginTransaction}
+        onEndEdit={timeline.commitTransaction}
+        soundFocusRequest={soundFocusRequest}
+        onSoundFocusHandled={handleSoundFocusHandled}
       />
     </Box>
   )

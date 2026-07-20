@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Knead desktop windows",
+  "windows": ["main", "sub"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-confirm"
+  ]
+}

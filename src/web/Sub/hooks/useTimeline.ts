@@ -1,10 +1,33 @@
 import { useCallback, useMemo, useReducer } from 'react'
 import { produce, Draft } from 'immer'
 import { v4 as uuidv4 } from 'uuid'
-import type { Marker, Tick, TimelineState } from '../types/timeline'
-import { DEFAULT_TIMELINE_LENGTH_TICKS } from '../types/timeline'
+import type { Curve, Marker, Tick, TimelineState } from '../types/timeline'
+import {
+  DEFAULT_RETRIGGER_INTERVAL,
+  DEFAULT_TIMELINE_LENGTH_TICKS,
+  getTimelineLengthTicks,
+  SINGLE_SHOT_CURVE_PREVIEW_TICKS,
+} from '../types/timeline'
+import { scaleCurveDuration } from '../utils/curveScaling'
 
 const MAX_HISTORY = 100
+
+function resizeMarkerCurves(marker: Draft<Marker>, duration: number): void {
+  const oldSpan = marker.duration && marker.duration > 0
+    ? marker.duration
+    : SINGLE_SHOT_CURVE_PREVIEW_TICKS
+  const newSpan = duration > 0 ? duration : SINGLE_SHOT_CURVE_PREVIEW_TICKS
+  marker.volumeCurve = scaleCurveDuration(marker.volumeCurve as Curve | undefined, oldSpan, newSpan)
+  marker.pitchCurve = scaleCurveDuration(marker.pitchCurve as Curve | undefined, oldSpan, newSpan)
+}
+
+function changesDuration(patch: Partial<Marker>, marker: Draft<Marker>): boolean {
+  return Object.prototype.hasOwnProperty.call(patch, 'duration') && patch.duration !== marker.duration
+}
+
+function syncTimelineLength(draft: Draft<TimelineState>): void {
+  draft.lengthTicks = getTimelineLengthTicks(draft.markers)
+}
 
 const defaultState = (): TimelineState => ({
   targetVersion: '',
@@ -97,10 +120,12 @@ export function useTimeline(initial?: TimelineState) {
             volume: partial.volume ?? 1.0,
             pitch: partial.pitch ?? 1.0,
             duration: partial.duration,
-            retriggerInterval: partial.retriggerInterval,
+            retriggerInterval: partial.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL,
             volumeCurve: partial.volumeCurve,
             pitchCurve: partial.pitchCurve,
+            trackY: partial.trackY,
           })
+          syncTimelineLength(draft)
         },
       })
       return id
@@ -122,11 +147,13 @@ export function useTimeline(initial?: TimelineState) {
             volume: p.volume ?? 1.0,
             pitch: p.pitch ?? 1.0,
             duration: p.duration,
-            retriggerInterval: p.retriggerInterval,
+            retriggerInterval: p.retriggerInterval ?? DEFAULT_RETRIGGER_INTERVAL,
             volumeCurve: p.volumeCurve,
             pitchCurve: p.pitchCurve,
+            trackY: p.trackY,
           })
         })
+        syncTimelineLength(draft)
       },
     })
     return ids
@@ -137,6 +164,7 @@ export function useTimeline(initial?: TimelineState) {
       type: 'mutate',
       recipe: (draft) => {
         draft.markers = draft.markers.filter(m => m.id !== id)
+        syncTimelineLength(draft)
       },
     })
   }, [])
@@ -148,6 +176,7 @@ export function useTimeline(initial?: TimelineState) {
       type: 'mutate',
       recipe: (draft) => {
         draft.markers = draft.markers.filter(m => !idSet.has(m.id))
+        syncTimelineLength(draft)
       },
     })
   }, [])
@@ -158,8 +187,8 @@ export function useTimeline(initial?: TimelineState) {
       recipe: (draft) => {
         const m = draft.markers.find(m => m.id === id)
         if (!m) return
-        const maxTick = Math.max(0, draft.lengthTicks - 1)
-        m.tick = Math.min(maxTick, Math.max(0, Math.trunc(newTick)))
+        m.tick = Math.max(0, Math.trunc(newTick))
+        syncTimelineLength(draft)
       },
     })
   }, [])
@@ -169,12 +198,28 @@ export function useTimeline(initial?: TimelineState) {
     dispatch({
       type: 'mutate',
       recipe: (draft) => {
-        const maxTick = Math.max(0, draft.lengthTicks - 1)
         for (const m of draft.markers) {
           const next = deltas.get(m.id)
           if (next === undefined) continue
-          m.tick = Math.min(maxTick, Math.max(0, Math.trunc(next)))
+          m.tick = Math.max(0, Math.trunc(next))
         }
+        syncTimelineLength(draft)
+      },
+    })
+  }, [])
+
+  const moveMarkersOnTrack = useCallback((positions: Map<string, { tick: Tick, trackY?: number }>) => {
+    if (positions.size === 0) return
+    dispatch({
+      type: 'mutate',
+      recipe: (draft) => {
+        for (const m of draft.markers) {
+          const next = positions.get(m.id)
+          if (next === undefined) continue
+          m.tick = Math.max(0, Math.trunc(next.tick))
+          m.trackY = next.trackY
+        }
+        syncTimelineLength(draft)
       },
     })
   }, [])
@@ -185,11 +230,14 @@ export function useTimeline(initial?: TimelineState) {
       recipe: (draft) => {
         const m = draft.markers.find(m => m.id === id)
         if (!m) return
+        if (changesDuration(patch, m)) {
+          resizeMarkerCurves(m, patch.duration ?? 0)
+        }
         Object.assign(m, patch)
         if (patch.tick !== undefined) {
-          const maxTick = Math.max(0, draft.lengthTicks - 1)
-          m.tick = Math.min(maxTick, Math.max(0, Math.trunc(patch.tick)))
+          m.tick = Math.max(0, Math.trunc(patch.tick))
         }
+        syncTimelineLength(draft)
       },
     })
   }, [])
@@ -200,22 +248,18 @@ export function useTimeline(initial?: TimelineState) {
     dispatch({
       type: 'mutate',
       recipe: (draft) => {
-        const maxTick = Math.max(0, draft.lengthTicks - 1)
         for (const m of draft.markers) {
           if (!idSet.has(m.id)) continue
+          if (changesDuration(patch, m)) {
+            resizeMarkerCurves(m, patch.duration ?? 0)
+          }
           Object.assign(m, patch)
           if (patch.tick !== undefined) {
-            m.tick = Math.min(maxTick, Math.max(0, Math.trunc(patch.tick)))
+            m.tick = Math.max(0, Math.trunc(patch.tick))
           }
         }
+        syncTimelineLength(draft)
       },
-    })
-  }, [])
-
-  const setLength = useCallback((ticks: Tick) => {
-    dispatch({
-      type: 'mutate',
-      recipe: (draft) => { draft.lengthTicks = Math.max(1, Math.trunc(ticks)) },
     })
   }, [])
 
@@ -227,7 +271,10 @@ export function useTimeline(initial?: TimelineState) {
   }, [])
 
   const replaceAll = useCallback((next: TimelineState) => {
-    dispatch({ type: 'replace', state: next })
+    dispatch({
+      type: 'replace',
+      state: { ...next, lengthTicks: getTimelineLengthTicks(next.markers) },
+    })
   }, [])
 
   const beginTransaction = useCallback(() => {
@@ -251,9 +298,9 @@ export function useTimeline(initial?: TimelineState) {
     removeMarkers,
     moveMarker,
     moveMarkers,
+    moveMarkersOnTrack,
     updateMarker,
     updateMarkers,
-    setLength,
     setTargetVersion,
     replaceAll,
     beginTransaction,
@@ -263,8 +310,8 @@ export function useTimeline(initial?: TimelineState) {
   }), [
     h.current, h.past.length, h.future.length,
     addMarker, addMarkers, removeMarker, removeMarkers,
-    moveMarker, moveMarkers, updateMarker, updateMarkers,
-    setLength, setTargetVersion, replaceAll,
+    moveMarker, moveMarkers, moveMarkersOnTrack, updateMarker, updateMarkers,
+    setTargetVersion, replaceAll,
     beginTransaction, commitTransaction, undo, redo,
   ])
 }
