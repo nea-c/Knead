@@ -8,3 +8,4 @@ src-tauri/gen/
 ..run.bat
 updater/**/*.exe
 .superpowers/
+.worktrees/
