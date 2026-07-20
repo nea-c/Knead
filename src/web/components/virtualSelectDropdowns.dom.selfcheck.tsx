@@ -43,6 +43,7 @@ const globalValues = {
   Element: dom.window.Element,
   HTMLElement: dom.window.HTMLElement,
   HTMLInputElement: dom.window.HTMLInputElement,
+  SVGElement: dom.window.SVGElement,
   Event: dom.window.Event,
   MouseEvent: dom.window.MouseEvent,
   KeyboardEvent: dom.window.KeyboardEvent,
@@ -59,6 +60,7 @@ const React = require('react') as typeof import('react')
 const { act } = React
 const { createRoot } = require('react-dom/client') as typeof import('react-dom/client')
 const { UIProvider } = require('@yamada-ui/react') as typeof import('@yamada-ui/react')
+require('../i18n/configs')
 const { VirtualVersionSelect } = require('../Main/VersionSelector') as typeof import('../Main/VersionSelector')
 const { AudioSelectDropdown } = require('../Sub/components/AudioSelectDropdown') as typeof import('../Sub/components/AudioSelectDropdown')
 
@@ -112,6 +114,13 @@ function getCombobox(container: Element): HTMLInputElement {
   return combobox
 }
 
+function assertPopupExiting(container: Element, combobox: HTMLInputElement): void {
+  assert.equal(combobox.getAttribute('aria-expanded'), 'false')
+  const popup = container.querySelector<HTMLElement>('[data-virtual-select-popup]')
+  assert.ok(popup)
+  assert.equal(popup.getAttribute('aria-hidden'), 'true')
+}
+
 function checkVersionInteractions(): void {
   let selected = ''
   const mounted = mount(
@@ -127,21 +136,35 @@ function checkVersionInteractions(): void {
 
   click(combobox)
   assert.equal(combobox.getAttribute('aria-expanded'), 'true')
+  assert.ok(mounted.container.querySelector('[data-virtual-select-popup].ui-scale-fade'))
   assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
   assert.equal(mounted.container.querySelectorAll('[role="option"] svg').length, 3)
+
+  input(combobox, 'missing')
+  assert.equal(combobox.getAttribute('aria-expanded'), 'true')
+  assert.ok(mounted.container.querySelector('[data-virtual-select-empty]'))
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 0)
+  assert.equal(mounted.container.querySelector('[data-virtual-select-chevron]'), null)
+  const clear = mounted.container.querySelector('[data-virtual-select-clear]')
+  assert.ok(clear)
+  click(clear)
+  assert.equal(combobox.value, '')
+  assert.equal(combobox.getAttribute('aria-expanded'), 'true')
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
+  assert.equal(selected, '')
 
   keyDown(combobox, 'ArrowDown')
   assert.match(combobox.getAttribute('aria-activedescendant') ?? '', /option-3$/)
   keyDown(combobox, 'Enter')
   assert.equal(selected, '24w10a')
-  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  assertPopupExiting(mounted.container, combobox)
 
   click(combobox)
   input(combobox, '24w11')
   assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 1)
   assert.match(mounted.container.querySelector('[role="option"]')?.textContent ?? '', /24w11b/)
   keyDown(combobox, 'Escape')
-  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  assertPopupExiting(mounted.container, combobox)
   mounted.unmount()
 
   const stale = mount(
@@ -171,12 +194,27 @@ function checkSoundInteractions(): void {
     <AudioSelectDropdown
       onSelect={value => selections.push(value)}
       options={options}
-      value=""
+      value="minecraft:block.note_block.harp"
     />,
   )
   const combobox = getCombobox(mounted.container)
 
   click(combobox)
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
+  assert.ok(mounted.container.querySelector('[data-virtual-select-popup].ui-scale-fade'))
+  assert.ok(mounted.container.querySelector('[data-virtual-select-clear]'))
+  input(combobox, 'missing')
+  assert.equal(combobox.getAttribute('aria-expanded'), 'true')
+  assert.ok(mounted.container.querySelector('[data-virtual-select-empty]'))
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 0)
+  const clear = mounted.container.querySelector('[data-virtual-select-clear]')
+  assert.ok(clear)
+  click(clear)
+  assert.equal(combobox.value, '')
+  assert.equal(combobox.getAttribute('aria-expanded'), 'true')
+  assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 3)
+  assert.deepEqual(selections, [])
+
   input(combobox, 'bell')
   assert.equal(mounted.container.querySelectorAll('[role="option"]').length, 1)
   click(mounted.container.querySelector('[role="option"]') as Element)
@@ -192,12 +230,12 @@ function checkSoundInteractions(): void {
 
   click(combobox)
   keyDown(combobox, 'Escape')
-  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  assertPopupExiting(mounted.container, combobox)
   click(combobox)
   act(() => {
     document.body.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }))
   })
-  assert.equal(mounted.container.querySelector('[role="listbox"]'), null)
+  assertPopupExiting(mounted.container, combobox)
   mounted.unmount()
 
   let handled = 0
@@ -214,6 +252,7 @@ function checkSoundInteractions(): void {
   flushAnimationFrame()
   assert.equal(document.activeElement, focusedCombobox)
   assert.equal(focusedCombobox.getAttribute('aria-expanded'), 'true')
+  assert.equal(focused.container.querySelectorAll('[role="option"]').length, 3)
   assert.equal(handled, 1)
   focused.unmount()
 }

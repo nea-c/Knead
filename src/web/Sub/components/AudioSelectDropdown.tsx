@@ -1,6 +1,6 @@
 import React, { FC, useState, useRef, useEffect, useMemo, ChangeEvent, useId } from 'react'
-import { Box, Input } from '@yamada-ui/react'
-import { ChevronDownIcon } from '@yamada-ui/lucide'
+import { Box, Input, ScaleFade } from '@yamada-ui/react'
+import { ChevronDownIcon, XIcon } from '@yamada-ui/lucide'
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
 import {
   VIRTUAL_SELECT_ITEM_HEIGHT,
@@ -8,12 +8,16 @@ import {
   getVirtualSelectItemState,
   isVirtualSelectPopupVisible,
   virtualSelectActiveItemProps,
+  virtualSelectClearButtonProps,
+  virtualSelectEmptyProps,
   virtualSelectItemProps,
   virtualSelectMenuProps,
+  virtualSelectPopupMotionProps,
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from '../../components/virtualSelectStyles'
 import { matchesVirtualSelectQuery } from '../../components/virtualSelectSearch'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   options: string[]
@@ -38,8 +42,10 @@ export const AudioSelectDropdown: FC<Props> = ({
   focusRequest = 0,
   onFocusRequestHandled,
 }) => {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -51,6 +57,7 @@ export const AudioSelectDropdown: FC<Props> = ({
     if (isDisabled || focusRequest <= 0 || handledFocusRequest.current === focusRequest) return
     handledFocusRequest.current = focusRequest
     setInputValue(value)
+    setQuery('')
     setActiveIndex(0)
     setOpen(true)
     const frame = requestAnimationFrame(() => {
@@ -63,6 +70,7 @@ export const AudioSelectDropdown: FC<Props> = ({
 
   const openDropdown = () => {
     setInputValue(value)
+    setQuery('')
     setActiveIndex(Math.max(0, options.indexOf(value)))
     setOpen(true)
     requestAnimationFrame(() => {
@@ -83,9 +91,9 @@ export const AudioSelectDropdown: FC<Props> = ({
 
   // 入力値でフィルタ (空白区切り AND 検索)
   const filteredOptions = useMemo(() => {
-    return options.filter(option => matchesVirtualSelectQuery(option, inputValue))
-  }, [options, inputValue])
-  const popupVisible = isVirtualSelectPopupVisible(open, filteredOptions.length)
+    return options.filter(option => matchesVirtualSelectQuery(option, query))
+  }, [options, query])
+  const popupVisible = isVirtualSelectPopupVisible(open, options.length)
 
   useEffect(() => {
     if (!open || filteredOptions.length === 0) return
@@ -97,7 +105,16 @@ export const AudioSelectDropdown: FC<Props> = ({
   const selectOption = (opt: string) => {
     onSelect(opt)
     setInputValue('')
+    setQuery('')
     setOpen(false)
+  }
+
+  const clearQuery = () => {
+    setInputValue('')
+    setQuery('')
+    setActiveIndex(0)
+    setOpen(true)
+    requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   const Row: FC<ListChildComponentProps> = ({ index, style }) => {
@@ -154,6 +171,7 @@ export const AudioSelectDropdown: FC<Props> = ({
         }}
         onChange={(e: ChangeEvent<HTMLInputElement>) => {
           setInputValue(e.target.value)
+          setQuery(e.target.value)
           setActiveIndex(0)
           if (!open) setOpen(true)
         }}
@@ -179,40 +197,71 @@ export const AudioSelectDropdown: FC<Props> = ({
         }}
         disabled={isDisabled}
       />
-      <Box
-        aria-hidden
-        color={['blackAlpha.600', 'whiteAlpha.700']}
-        data-virtual-select-chevron="true"
-        opacity={isDisabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
-        pointerEvents="none"
+      {open && inputValue.length > 0 && !isDisabled
+        ? (
+            <Box
+              {...virtualSelectClearButtonProps}
+              aria-label={t('virtual_select_clear')}
+              as="button"
+              data-virtual-select-clear="sound"
+              onClick={clearQuery}
+              onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+              position="absolute"
+              right="1"
+              top="50%"
+              transform="translateY(-50%)"
+              type="button"
+            >
+              <XIcon aria-hidden fontSize="md" />
+            </Box>
+          )
+        : (
+            <Box
+              aria-hidden
+              color={['blackAlpha.600', 'whiteAlpha.700']}
+              data-virtual-select-chevron="true"
+              opacity={isDisabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
+              pointerEvents="none"
+              position="absolute"
+              right="2"
+              top="50%"
+              transform="translateY(-50%)"
+            >
+              <ChevronDownIcon marginTop={1.5} marginRight={0.5} />
+            </Box>
+          )}
+      <ScaleFade
+        {...virtualSelectPopupMotionProps}
+        {...virtualSelectMenuProps}
+        aria-hidden={!popupVisible}
+        data-virtual-select-popup
+        id={listboxId}
+        open={popupVisible}
+        pointerEvents={popupVisible ? 'auto' : 'none'}
         position="absolute"
-        right="2"
-        top="50%"
-        transform="translateY(-50%)"
+        role="listbox"
+        top="calc(100% + 4px)"
+        width="100%"
+        zIndex={10}
       >
-        <ChevronDownIcon transform={popupVisible ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />
-      </Box>
-      {popupVisible && (
-        <Box
-          {...virtualSelectMenuProps}
-          id={listboxId}
-          position="absolute"
-          role="listbox"
-          top="calc(100% + 4px)"
-          width="100%"
-          zIndex={10}
-        >
-          <VirtualList
-            ref={listRef}
-            height={Math.min(filteredOptions.length * VIRTUAL_SELECT_ITEM_HEIGHT, height)}
-            width="100%"
-            itemCount={filteredOptions.length}
-            itemSize={VIRTUAL_SELECT_ITEM_HEIGHT}
-          >
-            {Row}
-          </VirtualList>
-        </Box>
-      )}
+        {filteredOptions.length > 0
+          ? (
+              <VirtualList
+                ref={listRef}
+                height={Math.min(filteredOptions.length * VIRTUAL_SELECT_ITEM_HEIGHT, height)}
+                width="100%"
+                itemCount={filteredOptions.length}
+                itemSize={VIRTUAL_SELECT_ITEM_HEIGHT}
+              >
+                {Row}
+              </VirtualList>
+            )
+          : (
+              <Box {...virtualSelectEmptyProps} data-virtual-select-empty role="status">
+                {t('virtual_select_no_results')}
+              </Box>
+            )}
+      </ScaleFade>
     </Box>
   )
 }

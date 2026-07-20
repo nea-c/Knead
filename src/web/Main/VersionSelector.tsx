@@ -1,12 +1,12 @@
 import React from 'react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Box, HStack, Input, Text } from '@yamada-ui/react'
+import { Box, HStack, Input, ScaleFade, Text } from '@yamada-ui/react'
 import { useAddDispatch } from '../../store/_store'
 import { Sound, updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
 import { VersionInfoType, compareReleaseVersionInfo, compareSnapshotVersionInfo, comparePreReleaseVersionInfo, compareReleaseCandidateVersionInfo, parseVersion } from '../../types/VersionInfo'
 import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
-import { ChevronDownIcon, CircleCheckIcon, DownloadIcon } from '@yamada-ui/lucide'
+import { ChevronDownIcon, CircleCheckIcon, DownloadIcon, XIcon } from '@yamada-ui/lucide'
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
 import {
   VIRTUAL_SELECT_ITEM_HEIGHT,
@@ -14,9 +14,12 @@ import {
   getVirtualSelectItemState,
   isVirtualSelectPopupVisible,
   virtualSelectActiveItemProps,
+  virtualSelectClearButtonProps,
+  virtualSelectEmptyProps,
   virtualSelectHeadingProps,
   virtualSelectItemProps,
   virtualSelectMenuProps,
+  virtualSelectPopupMotionProps,
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from '../components/virtualSelectStyles'
@@ -98,6 +101,7 @@ const VirtualVersionRow = React.memo(({ index, style, data }: ListChildComponent
 VirtualVersionRow.displayName = 'VirtualVersionRow'
 
 export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: VirtualVersionSelectProps) => {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [query, setQuery] = useState('')
@@ -109,7 +113,8 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
 
   const filteredRows = useMemo(() => filterVersionRows(rows, query), [query, rows])
   const firstVersionIndex = useMemo(() => filteredRows.findIndex(row => row.type === 'version'), [filteredRows])
-  const selectableVersionCount = useMemo(() => filteredRows.filter(row => row.type === 'version').length, [filteredRows])
+  const filteredVersionCount = useMemo(() => filteredRows.filter(row => row.type === 'version').length, [filteredRows])
+  const selectableVersionCount = useMemo(() => rows.filter(row => row.type === 'version').length, [rows])
   const popupVisible = isVirtualSelectPopupVisible(open, selectableVersionCount)
 
   const activate = useCallback((index: number) => {
@@ -145,6 +150,14 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
     onChange(version)
     setOpen(false)
   }, [onChange])
+
+  const clearQuery = useCallback(() => {
+    setInputValue('')
+    setQuery('')
+    const nextIndex = rows.findIndex(row => row.type === 'version')
+    if (nextIndex >= 0) activate(nextIndex)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [activate, rows])
 
   const moveActive = useCallback((direction: 1 | -1) => {
     let nextIndex = activeIndex
@@ -233,48 +246,79 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
         role="combobox"
         value={open ? inputValue : value}
       />
-      <Box
-        aria-hidden
-        color={['blackAlpha.600', 'whiteAlpha.700']}
-        data-virtual-select-chevron="end"
-        opacity={disabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
-        pointerEvents="none"
+      {open && inputValue.length > 0 && !disabled
+        ? (
+            <Box
+              {...virtualSelectClearButtonProps}
+              aria-label={t('virtual_select_clear')}
+              as="button"
+              data-virtual-select-clear="version"
+              onClick={clearQuery}
+              onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => event.preventDefault()}
+              position="absolute"
+              right="1"
+              top="50%"
+              transform="translateY(-50%)"
+              type="button"
+            >
+              <XIcon aria-hidden fontSize="md" />
+            </Box>
+          )
+        : (
+            <Box
+              aria-hidden
+              color={['blackAlpha.600', 'whiteAlpha.700']}
+              data-virtual-select-chevron="end"
+              opacity={disabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
+              pointerEvents="none"
+              position="absolute"
+              right="2"
+              top="50%"
+              transform="translateY(-50%)"
+            >
+              <ChevronDownIcon marginTop={1.5} marginRight={0.5} />
+            </Box>
+          )}
+      <ScaleFade
+        {...virtualSelectPopupMotionProps}
+        {...virtualSelectMenuProps}
+        aria-hidden={!popupVisible}
+        data-virtual-select-popup
+        id={listboxId}
+        left={0}
+        open={popupVisible}
+        overflow="hidden"
+        pointerEvents={popupVisible ? 'auto' : 'none'}
         position="absolute"
-        right="2"
-        top="50%"
-        transform="translateY(-50%)"
+        role="listbox"
+        top="calc(100% + 4px)"
+        width="full"
+        zIndex={50}
       >
-        <ChevronDownIcon transform={popupVisible ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />
-      </Box>
-      {popupVisible && (
-        <Box
-          {...virtualSelectMenuProps}
-          id={listboxId}
-          left={0}
-          overflow="hidden"
-          position="absolute"
-          role="listbox"
-          top="calc(100% + 4px)"
-          width="full"
-          zIndex={50}
-        >
-          <VirtualList
-            height={Math.min(filteredRows.length * VIRTUAL_SELECT_ITEM_HEIGHT, VERSION_LIST_HEIGHT)}
-            itemCount={filteredRows.length}
-            itemData={rowData}
-            itemKey={(index, data) => {
-              const row = data.rows[index]
-              return row.type === 'heading' ? `heading-${row.label}` : row.version.raw
-            }}
-            itemSize={VIRTUAL_SELECT_ITEM_HEIGHT}
-            overscanCount={3}
-            ref={listRef}
-            width="100%"
-          >
-            {VirtualVersionRow}
-          </VirtualList>
-        </Box>
-      )}
+        {filteredVersionCount > 0
+          ? (
+              <VirtualList
+                height={Math.min(filteredRows.length * VIRTUAL_SELECT_ITEM_HEIGHT, VERSION_LIST_HEIGHT)}
+                itemCount={filteredRows.length}
+                itemData={rowData}
+                itemKey={(index, data) => {
+                  const row = data.rows[index]
+                  return row.type === 'heading' ? `heading-${row.label}` : row.version.raw
+                }}
+                itemSize={VIRTUAL_SELECT_ITEM_HEIGHT}
+                overscanCount={3}
+                ref={listRef}
+                width="100%"
+              >
+                {VirtualVersionRow}
+              </VirtualList>
+            )
+          : (
+              <Box {...virtualSelectEmptyProps} data-virtual-select-empty role="status">
+                {t('virtual_select_no_results')}
+              </Box>
+            )}
+      </ScaleFade>
     </Box>
   )
 }

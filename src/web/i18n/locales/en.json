@@ -1,4 +1,6 @@
 {
+  "virtual_select_clear": "Clear search",
+  "virtual_select_no_results": "No matching options",
   "version_select": "Select Version",
   "release_version": "Releases",
   "snapshot_version": "Snapshots",

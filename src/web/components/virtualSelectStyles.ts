@@ -10,7 +10,7 @@ export const virtualSelectTriggerProps = {
   fontSize: 'md',
   fontWeight: 'normal',
   minH: '10',
-  paddingTop: '1px',
+  paddingTop: '2px',
   px: '3',
   rounded: 'md',
   transitionDuration: 'normal',
@@ -32,6 +32,37 @@ export const virtualSelectMenuProps = {
   rounded: 'md',
 } satisfies BoxProps
 
+export const virtualSelectPopupMotionProps = {
+  duration: 0.2,
+  scale: 1,
+  transformOrigin: 'top center',
+} as const
+
+export const virtualSelectClearButtonProps = {
+  alignItems: 'center',
+  bg: 'transparent',
+  color: ['blackAlpha.600', 'whiteAlpha.700'],
+  cursor: 'pointer',
+  display: 'flex',
+  justifyContent: 'center',
+  minH: '7',
+  minW: '7',
+  p: '1',
+  rounded: 'sm',
+  _hover: { bg: ['blackAlpha.100', 'whiteAlpha.100'] },
+  _focusVisible: { boxShadow: '0 0 0 2px var(--ui-colors-focus)' },
+} satisfies BoxProps
+
+export const virtualSelectEmptyProps = {
+  alignItems: 'center',
+  color: 'muted',
+  display: 'flex',
+  fontSize: 'sm',
+  minH: VIRTUAL_SELECT_ITEM_HEIGHT,
+  px: '3',
+  py: '2',
+} satisfies BoxProps
+
 export const virtualSelectItemProps = {
   cursor: 'pointer',
   px: '3',
@@ -47,7 +78,7 @@ export const virtualSelectActiveItemProps = {
 } satisfies BoxProps
 
 export const virtualSelectSelectedItemProps = {
-  bg: ['blackAlpha.200', 'whiteAlpha.200'],
+  bg: ['blackAlpha.100', 'whiteAlpha.100'],
 } satisfies BoxProps
 
 export const virtualSelectHeadingProps = {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { UIProvider } from '@yamada-ui/react'
+import '../i18n/configs'
 import { AudioSelectDropdown } from '../Sub/components/AudioSelectDropdown'
 import { VirtualVersionSelect } from '../Main/VersionSelector'
 import { buildGroupedVersionRows, filterVersionRows, getInitialVirtualSelectQuery, getInitialVirtualSelectState, matchesVirtualSelectQuery } from './virtualSelectSearch'
@@ -11,8 +12,11 @@ import {
   getVirtualSelectItemState,
   isVirtualSelectPopupVisible,
   virtualSelectActiveItemProps,
+  virtualSelectClearButtonProps,
+  virtualSelectEmptyProps,
   virtualSelectItemProps,
   virtualSelectMenuProps,
+  virtualSelectPopupMotionProps,
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from './virtualSelectStyles'
@@ -88,7 +92,7 @@ export function _selfCheckVirtualSelectDropdowns(): void {
   assert.doesNotMatch(disabledVersionHtml, /data-virtual-select-status-icon="start"/)
   assert.equal(disabledVersionHtml.match(/opacity:0\.4/g)?.length, 2)
 
-  assert.equal((virtualSelectTriggerProps as { paddingTop?: string }).paddingTop, '1px')
+  assert.equal((virtualSelectTriggerProps as { paddingTop?: string }).paddingTop, '2px')
 
   assert.equal(VIRTUAL_SELECT_ITEM_HEIGHT, 36)
   assert.equal((virtualSelectItemProps as { py?: string }).py, '1.5')
@@ -99,9 +103,15 @@ export function _selfCheckVirtualSelectDropdowns(): void {
   assert.equal(virtualSelectTriggerProps.minH, '10')
   assert.equal(virtualSelectTriggerProps.rounded, 'md')
   assert.equal(virtualSelectMenuProps.rounded, 'md')
+  assert.equal(virtualSelectPopupMotionProps.duration, 0.2)
+  assert.equal(virtualSelectPopupMotionProps.scale, 1)
+  assert.equal(virtualSelectPopupMotionProps.transformOrigin, 'top center')
+  assert.equal(virtualSelectClearButtonProps.rounded, 'sm')
+  assert.equal(virtualSelectEmptyProps.color, 'muted')
+  assert.equal(virtualSelectEmptyProps.minH, VIRTUAL_SELECT_ITEM_HEIGHT)
   assert.deepEqual(virtualSelectMenuProps.bg, ['white', 'black'])
   assert.deepEqual(virtualSelectActiveItemProps.bg, ['blackAlpha.100', 'whiteAlpha.100'])
-  assert.deepEqual(virtualSelectSelectedItemProps.bg, ['blackAlpha.200', 'whiteAlpha.200'])
+  assert.deepEqual(virtualSelectSelectedItemProps.bg, ['blackAlpha.100', 'whiteAlpha.100'])
   assert.equal(getVirtualSelectItemState(false, false), 'idle')
   assert.equal(getVirtualSelectItemState(false, true), 'active')
   assert.equal(getVirtualSelectItemState(true, false), 'selected')

@@ -1,4 +1,6 @@
 {
+  "virtual_select_clear": "検索をクリア",
+  "virtual_select_no_results": "該当する候補がありません",
   "version_select": "バージョンを選択",
   "release_version": "正式",
   "snapshot_version": "スナップショット",
