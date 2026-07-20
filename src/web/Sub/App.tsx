@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useAddDispatch, useAppSelector } from '../../store/_store'
 import { updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
 import { TimelineEditor } from './components/TimelineEditor'
-import { VersionInfoType } from '../../types/VersionInfo'
+import { parseVersion } from '../../types/VersionInfo'
 
 export const SubApp = () => {
   const dispatch = useAddDispatch()
@@ -10,8 +10,14 @@ export const SubApp = () => {
 
   useEffect(() => {
     ;(async () => {
-      const version = await window.myAPI.getSetting('selectedVersion')
-      if (version) dispatch(updateTargetVersion({ targetVersion: version as VersionInfoType }))
+      const setting = await window.myAPI.getSetting('selectedVersion')
+      const rawVersion = typeof setting === 'string'
+        ? setting
+        : typeof setting === 'object' && setting !== null && 'raw' in setting && typeof setting.raw === 'string'
+          ? setting.raw
+          : undefined
+      const version = rawVersion ? parseVersion(rawVersion) : undefined
+      if (version) dispatch(updateTargetVersion({ targetVersion: version }))
     })()
   }, [dispatch])
 

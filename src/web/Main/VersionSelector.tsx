@@ -249,6 +249,26 @@ export const VersionSelector = () => {
   const [SelectedVersion, setSelectedVersion] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState<AssetDownloadProgress | null>(null)
+  const loadedSoundsVersionRef = useRef('')
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const setting = await window.myAPI.getSetting('selectedVersion')
+      const rawVersion = typeof setting === 'string'
+        ? setting
+        : typeof setting === 'object' && setting !== null && 'raw' in setting && typeof setting.raw === 'string'
+          ? setting.raw
+          : undefined
+      const version = rawVersion ? parseVersion(rawVersion) : undefined
+      if (cancelled || !version) return
+      setSelectedVersion(version.raw)
+      dispatch(updateTargetVersion({ targetVersion: version }))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [dispatch])
 
   useEffect(() => {
     let cancelled = false
@@ -271,25 +291,36 @@ export const VersionSelector = () => {
     }
   }, [])
 
+  const selectedVersionDownloaded = useMemo(() => {
+    return versions.find(version => version.raw === SelectedVersion)?.downloaded
+  }, [SelectedVersion, versions])
+
   useEffect(() => {
-    if (!SelectedVersion) return
+    if (!SelectedVersion || selectedVersionDownloaded === undefined) return
+    if (loadedSoundsVersionRef.current === SelectedVersion) return
     let cancelled = false
     void (async () => {
-      setIsDownloading(true)
-      setDownloadProgress(null)
+      const shouldDownload = !selectedVersionDownloaded
       let stopListening: (() => void) | undefined
       try {
-        stopListening = await listen<AssetDownloadProgress>('asset-download-progress', (event) => {
-          if (!cancelled && event.payload.version === SelectedVersion) {
-            setDownloadProgress(event.payload)
-          }
-        })
-        await window.myAPI.downloadVersionAssets(SelectedVersion)
+        if (shouldDownload) {
+          setIsDownloading(true)
+          setDownloadProgress(null)
+          stopListening = await listen<AssetDownloadProgress>('asset-download-progress', (event) => {
+            if (!cancelled && event.payload.version === SelectedVersion) {
+              setDownloadProgress(event.payload)
+            }
+          })
+          await window.myAPI.downloadVersionAssets(SelectedVersion)
+        }
         const sounds: Sound[] = await window.myAPI.get_mcSounds(SelectedVersion)
         if (!cancelled) {
-          setVersions(versions => versions.map((version) => {
-            return version.raw === SelectedVersion ? { ...version, downloaded: true } : version
-          }))
+          loadedSoundsVersionRef.current = SelectedVersion
+          if (shouldDownload) {
+            setVersions(versions => versions.map((version) => {
+              return version.raw === SelectedVersion ? { ...version, downloaded: true } : version
+            }))
+          }
           dispatch(updateSoundList({ sounds }))
         }
       }
@@ -300,7 +331,7 @@ export const VersionSelector = () => {
       }
       finally {
         stopListening?.()
-        if (!cancelled) {
+        if (!cancelled && shouldDownload) {
           setIsDownloading(false)
         }
       }
@@ -308,7 +339,7 @@ export const VersionSelector = () => {
     return () => {
       cancelled = true
     }
-  }, [SelectedVersion, dispatch])
+  }, [SelectedVersion, dispatch, selectedVersionDownloaded])
 
   const versionRows = useMemo<VersionRow[]>(() => {
     const major_versions = versions.filter(v => v.kind === 'release').sort(compareReleaseVersionInfo).reverse()
@@ -325,6 +356,7 @@ export const VersionSelector = () => {
 
   const onChangeVersion = useCallback((version: string) => {
     setSelectedVersion(version)
+    window.myAPI.setSetting('selectedVersion', version)
     const parsedVersion = parseVersion(version)
     dispatch(updateTargetVersion({ targetVersion: parsedVersion }))
   }, [dispatch])
