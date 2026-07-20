@@ -1,6 +1,16 @@
-import React, { FC, useState, useRef, useEffect, useMemo, ChangeEvent } from 'react'
+import React, { FC, useState, useRef, useEffect, useMemo, ChangeEvent, useId } from 'react'
 import { Box, Input } from '@yamada-ui/react'
+import { ChevronDownIcon } from '@yamada-ui/lucide'
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
+import {
+  VIRTUAL_SELECT_ITEM_HEIGHT,
+  getVirtualSelectItemState,
+  virtualSelectActiveItemProps,
+  virtualSelectItemProps,
+  virtualSelectMenuProps,
+  virtualSelectSelectedItemProps,
+  virtualSelectTriggerProps,
+} from '../../components/virtualSelectStyles'
 
 interface Props {
   options: string[]
@@ -30,6 +40,7 @@ export const AudioSelectDropdown: FC<Props> = ({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<VirtualList>(null)
   const handledFocusRequest = useRef(0)
+  const listboxId = useId()
 
   useEffect(() => {
     if (isDisabled || focusRequest <= 0 || handledFocusRequest.current === focusRequest) return
@@ -75,8 +86,6 @@ export const AudioSelectDropdown: FC<Props> = ({
     })
   }, [options, inputValue])
 
-  const ITEM_H = 30
-
   useEffect(() => {
     if (!open || filteredOptions.length === 0) return
     const nextIndex = Math.min(activeIndex, filteredOptions.length - 1)
@@ -94,32 +103,45 @@ export const AudioSelectDropdown: FC<Props> = ({
     const opt = filteredOptions[index]
     const selected = opt === value
     const active = index === activeIndex
+    const state = getVirtualSelectItemState(selected, active)
+    const background = state === 'selected'
+      ? virtualSelectSelectedItemProps.bg
+      : state === 'active'
+        ? virtualSelectActiveItemProps.bg
+        : 'transparent'
     return (
-      <div
-        style={{
-          ...style,
-          background: active ? '#374151' : (selected ? '#2563eb' : 'transparent'),
-          color: selected || active ? '#fff' : 'inherit',
-          padding: '6px 12px',
-          cursor: 'pointer',
-          userSelect: 'none',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-        title={opt}
+      <Box
+        {...virtualSelectItemProps}
+        aria-selected={selected}
+        bg={background}
+        id={`${listboxId}-option-${index}`}
         onClick={() => selectOption(opt)}
         onMouseEnter={() => setActiveIndex(index)}
+        overflow="hidden"
+        role="option"
+        style={style}
+        textOverflow="ellipsis"
+        title={opt}
+        whiteSpace="nowrap"
       >
         {opt}
-      </div>
+      </Box>
     )
   }
 
   return (
-    <Box position="relative" width="100%">
+    <Box ref={ref} position="relative" width="100%">
       <Input
+        {...virtualSelectTriggerProps}
         ref={inputRef}
+        aria-activedescendant={open && filteredOptions[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
+        aria-autocomplete="list"
+        aria-controls={listboxId}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        cursor={isDisabled ? 'not-allowed' : 'pointer'}
+        pe="8"
+        role="combobox"
         value={open ? inputValue : value}
         placeholder={placeholder}
         readOnly={isDisabled}
@@ -153,27 +175,35 @@ export const AudioSelectDropdown: FC<Props> = ({
             setOpen(false)
           }
         }}
-        cursor="pointer"
         disabled={isDisabled}
       />
-      {open && (
+      <Box
+        aria-hidden
+        color={['blackAlpha.600', 'whiteAlpha.700']}
+        pointerEvents="none"
+        position="absolute"
+        right="2"
+        top="50%"
+        transform="translateY(-50%)"
+      >
+        <ChevronDownIcon transform={open ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />
+      </Box>
+      {open && filteredOptions.length > 0 && (
         <Box
-          ref={ref}
+          {...virtualSelectMenuProps}
+          id={listboxId}
           position="absolute"
-          top="100%"
+          role="listbox"
+          top="calc(100% + 4px)"
           width="100%"
-          bg="gray.800"
-          border="1px solid"
-          borderColor="gray.600"
-          borderRadius="md"
           zIndex={10}
         >
           <VirtualList
             ref={listRef}
-            height={Math.min(filteredOptions.length * ITEM_H, height)}
+            height={Math.min(filteredOptions.length * VIRTUAL_SELECT_ITEM_HEIGHT, height)}
             width="100%"
             itemCount={filteredOptions.length}
-            itemSize={ITEM_H}
+            itemSize={VIRTUAL_SELECT_ITEM_HEIGHT}
           >
             {Row}
           </VirtualList>

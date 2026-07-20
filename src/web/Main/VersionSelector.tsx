@@ -1,6 +1,6 @@
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Box, Button, HStack, Text, useColorModeValue } from '@yamada-ui/react'
+import { Box, Button, HStack, Text } from '@yamada-ui/react'
 import { useAddDispatch } from '../../store/_store'
 import { Sound, updateSoundList, updateTargetVersion } from '../../store/fetchSlice'
 import { VersionInfoType, compareReleaseVersionInfo, compareSnapshotVersionInfo, comparePreReleaseVersionInfo, compareReleaseCandidateVersionInfo, parseVersion } from '../../types/VersionInfo'
@@ -8,6 +8,16 @@ import { useTranslation } from 'react-i18next'
 import { listen } from '@tauri-apps/api/event'
 import { ChevronDownIcon, CircleCheckIcon, DownloadIcon } from '@yamada-ui/lucide'
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
+import {
+  VIRTUAL_SELECT_ITEM_HEIGHT,
+  getVirtualSelectItemState,
+  virtualSelectActiveItemProps,
+  virtualSelectHeadingProps,
+  virtualSelectItemProps,
+  virtualSelectMenuProps,
+  virtualSelectSelectedItemProps,
+  virtualSelectTriggerProps,
+} from '../components/virtualSelectStyles'
 
 type AssetDownloadProgress = {
   version: string
@@ -25,10 +35,7 @@ type VersionRow =
 
 type VersionRowData = {
   activeIndex: number
-  headingColor: string
-  hoverBackground: string
   rows: VersionRow[]
-  selectedBackground: string
   selectedVersion: string
   onActivate: (index: number) => void
   onSelect: (version: string) => void
@@ -42,8 +49,7 @@ type VirtualVersionSelectProps = {
   onChange: (version: string) => void
 }
 
-const VERSION_ROW_HEIGHT = 36
-const VERSION_LIST_HEIGHT = VERSION_ROW_HEIGHT * 8
+const VERSION_LIST_HEIGHT = VIRTUAL_SELECT_ITEM_HEIGHT * 8
 
 const VersionStatusIcon = ({ downloaded }: { downloaded: boolean }) => downloaded
   ? <CircleCheckIcon aria-hidden color="green.500" fontSize="md" />
@@ -53,15 +59,7 @@ const VirtualVersionRow = React.memo(({ index, style, data }: ListChildComponent
   const row = data.rows[index]
   if (row.type === 'heading') {
     return (
-      <Box
-        style={style}
-        color={data.headingColor}
-        fontSize="sm"
-        fontWeight="semibold"
-        paddingX={3}
-        paddingY={2}
-        role="presentation"
-      >
+      <Box {...virtualSelectHeadingProps} paddingY={2} role="presentation" style={style}>
         {row.label}
       </Box>
     )
@@ -69,19 +67,23 @@ const VirtualVersionRow = React.memo(({ index, style, data }: ListChildComponent
 
   const selected = row.version.raw === data.selectedVersion
   const active = index === data.activeIndex
+  const state = getVirtualSelectItemState(selected, active)
+  const background = state === 'selected'
+    ? virtualSelectSelectedItemProps.bg
+    : state === 'active'
+      ? virtualSelectActiveItemProps.bg
+      : 'transparent'
   return (
     <HStack
+      {...virtualSelectItemProps}
       aria-selected={selected}
-      bg={selected ? data.selectedBackground : active ? data.hoverBackground : 'transparent'}
-      cursor="pointer"
+      bg={background}
       gap={2}
       onClick={() => data.onSelect(row.version.raw)}
       onMouseEnter={() => data.onActivate(index)}
-      paddingX={3}
       role="option"
       style={style}
       title={row.version.raw}
-      userSelect="none"
     >
       <VersionStatusIcon downloaded={row.version.downloaded} />
       <Text overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
@@ -97,11 +99,6 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
   const [activeIndex, setActiveIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<VirtualList>(null)
-  const menuBackground = useColorModeValue('white', 'gray.800')
-  const borderColor = useColorModeValue('gray.200', 'gray.600')
-  const hoverBackground = useColorModeValue('gray.100', 'gray.700')
-  const selectedBackground = useColorModeValue('blue.50', 'gray.600')
-  const headingColor = useColorModeValue('gray.600', 'gray.300')
   const selectedVersion = useMemo(() => {
     const row = rows.find((row): row is Extract<VersionRow, { type: 'version' }> => {
       return row.type === 'version' && row.version.raw === value
@@ -157,22 +154,20 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
 
   const rowData = useMemo<VersionRowData>(() => ({
     activeIndex,
-    headingColor,
-    hoverBackground,
     rows,
-    selectedBackground,
     selectedVersion: value,
     onActivate: activate,
     onSelect: selectVersion,
-  }), [activeIndex, activate, headingColor, hoverBackground, rows, selectedBackground, selectVersion, value])
+  }), [activeIndex, activate, rows, selectVersion, value])
 
   return (
     <Box ref={containerRef} position="relative" width="14rem" zIndex={open ? 100 : undefined}>
       <Button
+        {...virtualSelectTriggerProps}
         aria-expanded={open}
         aria-haspopup="listbox"
         disabled={disabled}
-        endIcon={<ChevronDownIcon transform={open ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />}
+        endIcon={<ChevronDownIcon aria-hidden transform={open ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />}
         justifyContent="space-between"
         onClick={() => open ? setOpen(false) : openList()}
         onKeyDown={(event) => {
@@ -195,7 +190,7 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
             setOpen(false)
           }
         }}
-        variant="filled"
+        variant="unstyled"
         width="full"
       >
         <HStack gap={2} minW={0}>
@@ -207,11 +202,7 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
       </Button>
       {open && rows.length > 0 && (
         <Box
-          bg={menuBackground}
-          border="1px solid"
-          borderColor={borderColor}
-          borderRadius="md"
-          boxShadow="md"
+          {...virtualSelectMenuProps}
           left={0}
           overflow="hidden"
           position="absolute"
@@ -221,14 +212,14 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
           zIndex={50}
         >
           <VirtualList
-            height={Math.min(rows.length * VERSION_ROW_HEIGHT, VERSION_LIST_HEIGHT)}
+            height={Math.min(rows.length * VIRTUAL_SELECT_ITEM_HEIGHT, VERSION_LIST_HEIGHT)}
             itemCount={rows.length}
             itemData={rowData}
             itemKey={(index, data) => {
               const row = data.rows[index]
               return row.type === 'heading' ? `heading-${row.label}` : row.version.raw
             }}
-            itemSize={VERSION_ROW_HEIGHT}
+            itemSize={VIRTUAL_SELECT_ITEM_HEIGHT}
             overscanCount={3}
             ref={listRef}
             width="100%"
