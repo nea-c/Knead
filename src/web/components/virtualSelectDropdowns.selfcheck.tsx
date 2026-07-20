@@ -70,6 +70,7 @@ export function _selfCheckVirtualSelectDropdowns(): void {
   )
 
   assert.match(versionHtml, /<input[^>]*role="combobox"/)
+  assert.doesNotMatch(versionHtml, /data-virtual-select-status-icon="start"/)
   assert.match(versionHtml, /data-virtual-select-chevron="end"/)
 
   const disabledVersionHtml = renderToStaticMarkup(
@@ -84,8 +85,10 @@ export function _selfCheckVirtualSelectDropdowns(): void {
     </UIProvider>,
   )
 
-  assert.match(disabledVersionHtml, /data-virtual-select-status-icon="start"/)
-  assert.equal(disabledVersionHtml.match(/opacity:0\.4/g)?.length, 3)
+  assert.doesNotMatch(disabledVersionHtml, /data-virtual-select-status-icon="start"/)
+  assert.equal(disabledVersionHtml.match(/opacity:0\.4/g)?.length, 2)
+
+  assert.equal((virtualSelectTriggerProps as { paddingTop?: string }).paddingTop, '1px')
 
   assert.equal(VIRTUAL_SELECT_ITEM_HEIGHT, 36)
   assert.equal((virtualSelectItemProps as { py?: string }).py, '1.5')

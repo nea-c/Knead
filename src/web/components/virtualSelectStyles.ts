@@ -10,6 +10,7 @@ export const virtualSelectTriggerProps = {
   fontSize: 'md',
   fontWeight: 'normal',
   minH: '10',
+  paddingTop: '1px',
   px: '3',
   rounded: 'md',
   transitionDuration: 'normal',

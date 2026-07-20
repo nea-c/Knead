@@ -104,12 +104,6 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<VirtualList>(null)
-  const selectedVersion = useMemo(() => {
-    const row = rows.find((row): row is Extract<VersionRow, { type: 'version' }> => {
-      return row.type === 'version' && row.version.raw === value
-    })
-    return row?.version
-  }, [rows, value])
 
   const filteredRows = useMemo(() => filterVersionRows(rows, query), [query, rows])
   const firstVersionIndex = useMemo(() => filteredRows.findIndex(row => row.type === 'version'), [filteredRows])
@@ -202,7 +196,6 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
         cursor={disabled ? 'not-allowed' : 'pointer'}
         disabled={disabled}
         pe="8"
-        ps={selectedVersion ? '8' : '3'}
         onClick={() => {
           if (!open) openList()
         }}
@@ -237,20 +230,6 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
         role="combobox"
         value={open ? inputValue : value}
       />
-      {selectedVersion && (
-        <Box
-          aria-hidden
-          data-virtual-select-status-icon="start"
-          left="3"
-          opacity={disabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
-          pointerEvents="none"
-          position="absolute"
-          top="50%"
-          transform="translateY(-50%)"
-        >
-          <VersionStatusIcon downloaded={selectedVersion.downloaded} />
-        </Box>
-      )}
       <Box
         aria-hidden
         color={['blackAlpha.600', 'whiteAlpha.700']}
