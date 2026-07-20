@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { UIProvider } from '@yamada-ui/react'
 import { AudioSelectDropdown } from '../Sub/components/AudioSelectDropdown'
 import { VirtualVersionSelect } from '../Main/VersionSelector'
-import { filterVersionRows, getInitialVirtualSelectQuery, matchesVirtualSelectQuery } from './virtualSelectSearch'
+import { buildGroupedVersionRows, filterVersionRows, getInitialVirtualSelectQuery, getInitialVirtualSelectState, matchesVirtualSelectQuery } from './virtualSelectSearch'
 import {
   VIRTUAL_SELECT_DISABLED_OPACITY,
   VIRTUAL_SELECT_ITEM_HEIGHT,
@@ -29,6 +29,25 @@ export function _selfCheckVirtualSelectDropdowns(): void {
   assert.equal(getInitialVirtualSelectQuery(['1.21.1'], '1.21.1'), '1.21.1')
   assert.equal(getInitialVirtualSelectQuery(['1.21.1'], 'stale-version'), '')
   assert.equal(getInitialVirtualSelectQuery(['1.21.1'], ''), '')
+  const availableInitialState = getInitialVirtualSelectState(['1.21.1', '1.21.2'], '1.21.1')
+  assert.deepEqual(availableInitialState, { inputValue: '1.21.1', query: '' })
+  assert.deepEqual(filterVersionRows(versionRows, availableInitialState.query).flatMap(row => row.type === 'version' ? [row.version.raw] : []), ['1.21.1', '24w10a', '24w11b'])
+  assert.deepEqual(getInitialVirtualSelectState(['1.21.1'], 'stale-version'), { inputValue: '', query: '' })
+  assert.deepEqual(getInitialVirtualSelectState(['1.21.1'], ''), { inputValue: '', query: '' })
+  assert.deepEqual(buildGroupedVersionRows([
+    { label: 'Release', versions: [] },
+    { label: 'Snapshots', versions: [{ raw: '24w10a' }] },
+  ]), [
+    { type: 'heading', label: 'Snapshots' },
+    { type: 'version', version: { raw: '24w10a' } },
+  ])
+  assert.deepEqual(buildGroupedVersionRows([
+    { label: 'Release', versions: [{ raw: '1.21.1' }] },
+    { label: 'Snapshots', versions: [] },
+  ]), [
+    { type: 'heading', label: 'Release' },
+    { type: 'version', version: { raw: '1.21.1' } },
+  ])
   assert.equal(matchesVirtualSelectQuery('Minecraft 1.21.1', 'minecraft 21.1'), true)
   assert.equal(matchesVirtualSelectQuery('Minecraft 1.21.1', 'minecraft 24w'), false)
   assert.deepEqual(filterVersionRows(versionRows, ''), versionRows)

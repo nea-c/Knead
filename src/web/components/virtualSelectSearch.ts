@@ -12,6 +12,13 @@ export function getInitialVirtualSelectQuery(options: readonly string[], value: 
   return options.includes(value) ? value : ''
 }
 
+export function getInitialVirtualSelectState(options: readonly string[], value: string): {
+  inputValue: string
+  query: string
+} {
+  return { inputValue: getInitialVirtualSelectQuery(options, value), query: '' }
+}
+
 export function filterVersionRows<T extends { raw: string }>(
   rows: VersionFilterRow<T>[],
   query: string,
@@ -35,4 +42,14 @@ export function filterVersionRows<T extends { raw: string }>(
   }
 
   return filteredRows
+}
+
+export function buildGroupedVersionRows<T extends { raw: string }>(
+  groups: readonly { label: string, versions: readonly T[] }[],
+): VersionFilterRow<T>[] {
+  return groups.flatMap(({ label, versions }) => {
+    return versions.length === 0
+      ? []
+      : [{ type: 'heading' as const, label }, ...versions.map(version => ({ type: 'version' as const, version }))]
+  })
 }

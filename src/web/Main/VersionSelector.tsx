@@ -20,7 +20,7 @@ import {
   virtualSelectSelectedItemProps,
   virtualSelectTriggerProps,
 } from '../components/virtualSelectStyles'
-import { filterVersionRows, getInitialVirtualSelectQuery, VersionFilterRow } from '../components/virtualSelectSearch'
+import { buildGroupedVersionRows, filterVersionRows, getInitialVirtualSelectState, VersionFilterRow } from '../components/virtualSelectSearch'
 
 type AssetDownloadProgress = {
   version: string
@@ -99,6 +99,7 @@ VirtualVersionRow.displayName = 'VirtualVersionRow'
 export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: VirtualVersionSelectProps) => {
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -110,7 +111,7 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
     return row?.version
   }, [rows, value])
 
-  const filteredRows = useMemo(() => filterVersionRows(rows, inputValue), [inputValue, rows])
+  const filteredRows = useMemo(() => filterVersionRows(rows, query), [query, rows])
   const firstVersionIndex = useMemo(() => filteredRows.findIndex(row => row.type === 'version'), [filteredRows])
   const selectableVersionCount = useMemo(() => filteredRows.filter(row => row.type === 'version').length, [filteredRows])
   const popupVisible = isVirtualSelectPopupVisible(open, selectableVersionCount)
@@ -121,17 +122,18 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
   }, [])
 
   const openList = useCallback(() => {
-    const initialQuery = getInitialVirtualSelectQuery(
+    const initialState = getInitialVirtualSelectState(
       rows.flatMap(row => row.type === 'version' ? [row.version.raw] : []),
       value,
     )
-    const initialRows = filterVersionRows(rows, initialQuery)
+    const initialRows = filterVersionRows(rows, initialState.query)
     const initialVersionIndex = initialRows.findIndex(row => row.type === 'version')
     if (initialVersionIndex < 0) return
     const initialSelectedIndex = initialRows.findIndex((row) => {
       return row.type === 'version' && row.version.raw === value
     })
-    setInputValue(initialQuery)
+    setInputValue(initialState.inputValue)
+    setQuery(initialState.query)
     const nextIndex = initialSelectedIndex >= 0 ? initialSelectedIndex : initialVersionIndex
     setActiveIndex(nextIndex)
     setOpen(true)
@@ -142,6 +144,8 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
   }, [rows, value])
 
   const selectVersion = useCallback((version: string) => {
+    setInputValue(version)
+    setQuery(version)
     onChange(version)
     setOpen(false)
   }, [onChange])
@@ -199,9 +203,12 @@ export const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onCha
         disabled={disabled}
         pe="8"
         ps={selectedVersion ? '8' : '3'}
-        onClick={() => open ? setOpen(false) : openList()}
+        onClick={() => {
+          if (!open) openList()
+        }}
         onChange={(event) => {
           setInputValue(event.target.value)
+          setQuery(event.target.value)
           setActiveIndex(0)
           if (!open) setOpen(true)
         }}
@@ -395,12 +402,10 @@ export const VersionSelector = () => {
     const snapshot_versions = versions.filter(v => v.kind === 'snapshot').sort(compareSnapshotVersionInfo).reverse()
     const pre_versions = versions.filter(v => v.kind === 'pre-release').sort(comparePreReleaseVersionInfo).reverse()
     const rc_versions = versions.filter(v => v.kind === 'release-candidate').sort(compareReleaseCandidateVersionInfo).reverse()
-    return [
-      { type: 'heading', label: t('release_version') },
-      ...major_versions.map(version => ({ type: 'version', version }) as const),
-      { type: 'heading', label: t('snapshot_version') },
-      ...[...rc_versions, ...pre_versions, ...snapshot_versions].map(version => ({ type: 'version', version }) as const),
-    ]
+    return buildGroupedVersionRows<AvailableVersion>([
+      { label: t('release_version'), versions: major_versions },
+      { label: t('snapshot_version'), versions: [...rc_versions, ...pre_versions, ...snapshot_versions] },
+    ])
   }, [t, versions])
 
   const onChangeVersion = useCallback((version: string) => {
