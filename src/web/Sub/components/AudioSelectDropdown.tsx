@@ -4,7 +4,9 @@ import { ChevronDownIcon } from '@yamada-ui/lucide'
 import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-window'
 import {
   VIRTUAL_SELECT_ITEM_HEIGHT,
+  VIRTUAL_SELECT_DISABLED_OPACITY,
   getVirtualSelectItemState,
+  isVirtualSelectPopupVisible,
   virtualSelectActiveItemProps,
   virtualSelectItemProps,
   virtualSelectMenuProps,
@@ -85,6 +87,7 @@ export const AudioSelectDropdown: FC<Props> = ({
       return tokens.every(t => lower.includes(t))
     })
   }, [options, inputValue])
+  const popupVisible = isVirtualSelectPopupVisible(open, filteredOptions.length)
 
   useEffect(() => {
     if (!open || filteredOptions.length === 0) return
@@ -137,7 +140,7 @@ export const AudioSelectDropdown: FC<Props> = ({
         aria-activedescendant={open && filteredOptions[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined}
         aria-autocomplete="list"
         aria-controls={listboxId}
-        aria-expanded={open}
+        aria-expanded={popupVisible}
         aria-haspopup="listbox"
         cursor={isDisabled ? 'not-allowed' : 'pointer'}
         pe="8"
@@ -180,15 +183,16 @@ export const AudioSelectDropdown: FC<Props> = ({
       <Box
         aria-hidden
         color={['blackAlpha.600', 'whiteAlpha.700']}
+        opacity={isDisabled ? VIRTUAL_SELECT_DISABLED_OPACITY : 1}
         pointerEvents="none"
         position="absolute"
         right="2"
         top="50%"
         transform="translateY(-50%)"
       >
-        <ChevronDownIcon transform={open ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />
+        <ChevronDownIcon transform={popupVisible ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />
       </Box>
-      {open && filteredOptions.length > 0 && (
+      {popupVisible && (
         <Box
           {...virtualSelectMenuProps}
           id={listboxId}

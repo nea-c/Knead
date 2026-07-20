@@ -11,6 +11,7 @@ import { FixedSizeList as VirtualList, ListChildComponentProps } from 'react-win
 import {
   VIRTUAL_SELECT_ITEM_HEIGHT,
   getVirtualSelectItemState,
+  isVirtualSelectPopupVisible,
   virtualSelectActiveItemProps,
   virtualSelectHeadingProps,
   virtualSelectItemProps,
@@ -107,9 +108,11 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
   }, [rows, value])
 
   const firstVersionIndex = useMemo(() => rows.findIndex(row => row.type === 'version'), [rows])
+  const selectableVersionCount = useMemo(() => rows.filter(row => row.type === 'version').length, [rows])
   const selectedIndex = useMemo(() => rows.findIndex((row) => {
     return row.type === 'version' && row.version.raw === value
   }), [rows, value])
+  const popupVisible = isVirtualSelectPopupVisible(open, selectableVersionCount)
 
   const activate = useCallback((index: number) => {
     setActiveIndex(index)
@@ -117,6 +120,7 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
   }, [])
 
   const openList = useCallback(() => {
+    if (firstVersionIndex < 0) return
     const nextIndex = selectedIndex >= 0 ? selectedIndex : Math.max(0, firstVersionIndex)
     setActiveIndex(nextIndex)
     setOpen(true)
@@ -152,6 +156,10 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
     if (disabled) setOpen(false)
   }, [disabled])
 
+  useEffect(() => {
+    if (!popupVisible) setOpen(false)
+  }, [popupVisible])
+
   const rowData = useMemo<VersionRowData>(() => ({
     activeIndex,
     rows,
@@ -161,13 +169,13 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
   }), [activeIndex, activate, rows, selectVersion, value])
 
   return (
-    <Box ref={containerRef} position="relative" width="14rem" zIndex={open ? 100 : undefined}>
+    <Box ref={containerRef} position="relative" width="14rem" zIndex={popupVisible ? 100 : undefined}>
       <Button
         {...virtualSelectTriggerProps}
-        aria-expanded={open}
+        aria-expanded={popupVisible}
         aria-haspopup="listbox"
         disabled={disabled}
-        endIcon={<ChevronDownIcon aria-hidden transform={open ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />}
+        endIcon={<ChevronDownIcon aria-hidden transform={popupVisible ? 'rotate(180deg)' : undefined} transition="transform 0.15s" />}
         justifyContent="space-between"
         onClick={() => open ? setOpen(false) : openList()}
         onKeyDown={(event) => {
@@ -200,7 +208,7 @@ const VirtualVersionSelect = ({ disabled, placeholder, rows, value, onChange }: 
           </Text>
         </HStack>
       </Button>
-      {open && rows.length > 0 && (
+      {popupVisible && (
         <Box
           {...virtualSelectMenuProps}
           left={0}

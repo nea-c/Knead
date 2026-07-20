@@ -1,6 +1,7 @@
 import type { BoxProps } from '@yamada-ui/react'
 
 export const VIRTUAL_SELECT_ITEM_HEIGHT = 36
+export const VIRTUAL_SELECT_DISABLED_OPACITY = 0.4
 
 export const virtualSelectTriggerProps = {
   bg: 'inherit',
@@ -18,7 +19,7 @@ export const virtualSelectTriggerProps = {
     borderColor: 'focus',
     boxShadow: '0 0 0 1px var(--ui-colors-focus)',
   },
-  _disabled: { cursor: 'not-allowed', opacity: 0.4 },
+  _disabled: { cursor: 'not-allowed', opacity: VIRTUAL_SELECT_DISABLED_OPACITY },
 } satisfies BoxProps
 
 export const virtualSelectMenuProps = {
@@ -33,6 +34,7 @@ export const virtualSelectMenuProps = {
 export const virtualSelectItemProps = {
   cursor: 'pointer',
   px: '3',
+  py: '1.5',
   transitionDuration: 'ultra-fast',
   transitionProperty: 'background',
   transitionTimingFunction: 'ease-in',
@@ -53,6 +55,10 @@ export const virtualSelectHeadingProps = {
   fontWeight: 'semibold',
   px: '3',
 } satisfies BoxProps
+
+export function isVirtualSelectPopupVisible(open: boolean, itemCount: number): boolean {
+  return open && itemCount > 0
+}
 
 export function getVirtualSelectItemState(
   selected: boolean,
