@@ -21,11 +21,8 @@ export function useAudioBufferCache() {
     const hash = variants[variantIndex].hash
     if (!hash) return
     if (cacheRef.current.has(hash)) return
-    const absPath = await window.myAPI.get_mcSoundHash(hash)
-    if (!absPath) return
-    const res = await fetch('file://' + absPath)
-    const arr = await res.arrayBuffer()
-    const buf = await getAudioContext().decodeAudioData(arr)
+    const data = await window.myAPI.get_mcSoundData(hash)
+    const buf = await getAudioContext().decodeAudioData(data)
     cacheRef.current.set(hash, buf)
   }, [soundMap, getAudioContext])
 
@@ -64,12 +61,13 @@ export function useAudioBufferCache() {
 
   // アンマウント時に AudioContext を閉じる
   useEffect(() => {
+    const cache = cacheRef.current
     return () => {
       if (ctxRef.current) {
         ctxRef.current.close().catch(() => {})
         ctxRef.current = null
       }
-      cacheRef.current.clear()
+      cache.clear()
     }
   }, [])
 

@@ -84,7 +84,19 @@ export const parseVersion = (raw: string) => {
     } as SnapshotVersionInfo
   }
 
-  const preRelease = /^(\d+)\.(\d+)(?:\.(\d+))?-pre(\d+)$/.exec(raw)
+  // Mojang changed snapshot IDs from 26wXXa to 26.X-snapshot-N in 2026.
+  const numberedSnapshot = /^(\d+)\.(\d+)-snapshot-(\d+)$/.exec(raw)
+  if (numberedSnapshot) {
+    return {
+      kind: 'snapshot',
+      raw,
+      year: Number(numberedSnapshot[1]),
+      releaseNumber: Number(numberedSnapshot[2]) * 1000 + Number(numberedSnapshot[3]),
+      letter: 'z',
+    } as SnapshotVersionInfo
+  }
+
+  const preRelease = /^(\d+)\.(\d+)(?:\.(\d+))?-pre-?(\d+)$/.exec(raw)
   if (preRelease) {
     return {
       kind: 'pre-release',
@@ -96,7 +108,7 @@ export const parseVersion = (raw: string) => {
     } as PreReleaseVersionInfo
   }
 
-  const releaseCandidate = /^(\d+)\.(\d+)(?:\.(\d+))?-rc(\d+)$/.exec(raw)
+  const releaseCandidate = /^(\d+)\.(\d+)(?:\.(\d+))?-rc-?(\d+)$/.exec(raw)
   if (releaseCandidate) {
     return {
       kind: 'release-candidate',

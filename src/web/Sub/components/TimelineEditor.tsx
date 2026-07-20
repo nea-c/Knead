@@ -13,6 +13,8 @@ import { TimelineTrack, SelectModifiers } from './TimelineTrack'
 import { TimelinePlayhead } from './TimelinePlayhead'
 import { useAudioLibrary } from '../../../hooks/useAudioLibrary'
 import { TimelinePropertyPanel } from './TimelinePropertyPanel'
+import type { TimelineOpenResult } from '../../../../@types/global'
+import { findKneadProjectPath } from '../utils/projectFiles'
 
 interface Props {
   defaultSoundId?: string
@@ -32,6 +34,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
   const anchorRef = useRef<string | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [isProjectDragOver, setIsProjectDragOver] = useState(false)
   const clipboardRef = useRef<ClipboardItem[]>([])
   const cache = useAudioBufferCache()
   const [subVolume, setSubVolume] = useState<number>(() => {
@@ -191,9 +194,7 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     return window.confirm('未保存の変更があります。破棄しますか？')
   }, [dirty])
 
-  const handleOpen = useCallback(async () => {
-    if (!confirmDiscardIfDirty()) return
-    const res = await window.myAPI.timeline.openDialog()
+  const applyProjectResult = useCallback(async (res: TimelineOpenResult) => {
     if (!res.ok) {
       if ('canceled' in res) return
       window.alert(`読込エラー: ${res.error}`)
@@ -204,9 +205,14 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
       window.alert(`読込エラー: ${parsed.error}`)
       return
     }
+    const pathResult = await window.myAPI.timeline.setCurrentPath(res.path)
+    if (!pathResult.ok) {
+      window.alert(`読込エラー: ${pathResult.error}`)
+      return
+    }
     skipDirtyRef.current = true
     timeline.replaceAll(parsed.state)
-    setFilePath(res.path)
+    setFilePath(pathResult.path)
     setSelectedIds(new Set())
     anchorRef.current = null
     setDirty(false)
@@ -223,11 +229,96 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
       warnings.push(`現在のバージョンに存在しない soundId: ${missingSoundIds.join(', ')}`)
     }
     if (warnings.length > 0) window.alert(`警告:\n${warnings.join('\n')}`)
-  }, [timeline, confirmDiscardIfDirty, currentTargetVersion, soundMap])
+  }, [timeline, currentTargetVersion, soundMap])
+
+  const projectOpenInProgressRef = useRef(false)
+  const openProjectPath = useCallback(async (path: string) => {
+    if (projectOpenInProgressRef.current || !confirmDiscardIfDirty()) return
+    projectOpenInProgressRef.current = true
+    try {
+      await applyProjectResult(await window.myAPI.timeline.openPath(path))
+    }
+    catch (error) {
+      window.alert(`読込エラー: ${String(error)}`)
+    }
+    finally {
+      projectOpenInProgressRef.current = false
+    }
+  }, [applyProjectResult, confirmDiscardIfDirty])
+
+  const openProjectPathRef = useRef(openProjectPath)
+  openProjectPathRef.current = openProjectPath
+
+  useEffect(() => {
+    let disposed = false
+    let unlistenOpen: (() => void) | undefined
+    let unlistenDrop: (() => void) | undefined
+
+    const consumeOpenRequest = async () => {
+      try {
+        const path = await window.myAPI.timeline.takeOpenRequest()
+        if (path && !disposed) await openProjectPathRef.current(path)
+      }
+      catch (error) {
+        if (!disposed) window.alert(`読込エラー: ${String(error)}`)
+      }
+    }
+
+    void window.myAPI.timeline.onOpenRequested(() => {
+      void consumeOpenRequest()
+    })
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else {
+          unlistenOpen = unlisten
+          void consumeOpenRequest()
+        }
+      })
+      .catch(error => console.error('project open listener failed', error))
+
+    void window.myAPI.timeline.onDragDrop((event) => {
+      if (event.type === 'enter') {
+        setIsProjectDragOver(findKneadProjectPath(event.paths) !== undefined)
+      }
+      else if (event.type === 'leave') {
+        setIsProjectDragOver(false)
+      }
+      else if (event.type === 'drop') {
+        setIsProjectDragOver(false)
+        const projectPath = findKneadProjectPath(event.paths)
+        if (projectPath) void openProjectPathRef.current(projectPath)
+      }
+    })
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else unlistenDrop = unlisten
+      })
+      .catch(error => console.error('project drag-and-drop listener failed', error))
+
+    return () => {
+      disposed = true
+      unlistenOpen?.()
+      unlistenDrop?.()
+    }
+  }, [])
+
+  const handleOpen = useCallback(async () => {
+    if (projectOpenInProgressRef.current || !confirmDiscardIfDirty()) return
+    projectOpenInProgressRef.current = true
+    try {
+      await applyProjectResult(await window.myAPI.timeline.openDialog())
+    }
+    catch (error) {
+      window.alert(`読込エラー: ${String(error)}`)
+    }
+    finally {
+      projectOpenInProgressRef.current = false
+    }
+  }, [applyProjectResult, confirmDiscardIfDirty])
 
   const handleSaveAs = useCallback(async () => {
     const json = serialize(timeline.state)
-    const res = await window.myAPI.timeline.saveDialog(filePath ?? 'timeline.kp', json)
+    const res = await window.myAPI.timeline.saveDialog(filePath ?? 'untitled.kp', json)
     if (!res.ok) {
       if ('canceled' in res) return
       window.alert(`保存エラー: ${res.error}`)
@@ -366,10 +457,8 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
     if (selectedIds.size === 0 || delta === 0) return
     const selMarkers = timeline.state.markers.filter(m => selectedIds.has(m.id))
     if (selMarkers.length === 0) return
-    const maxTick = Math.max(0, timeline.state.lengthTicks - 1)
     const minCur = Math.min(...selMarkers.map(m => m.tick))
-    const maxCur = Math.max(...selMarkers.map(m => m.tick))
-    const clamped = Math.max(-minCur, Math.min(delta, maxTick - maxCur))
+    const clamped = Math.max(-minCur, delta)
     if (clamped === 0) return
     const deltas = new Map<string, number>()
     for (const m of selMarkers) deltas.set(m.id, m.tick + clamped)
@@ -381,7 +470,29 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
   const trackAreaHeight = 24 + trackHeight
 
   return (
-    <Box display="flex" flexDir="column" h="100vh" bg="gray.950">
+    <Box display="flex" flexDir="column" h="100vh" bg="gray.950" position="relative">
+      {isProjectDragOver && (
+        <Box
+          position="absolute"
+          top="0"
+          right="0"
+          bottom="0"
+          left="0"
+          zIndex="1000"
+          pointerEvents="none"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bg="rgba(0, 0, 0, 0.72)"
+          border="3px dashed"
+          borderColor="blue.400"
+          color="white"
+          fontSize="xl"
+          fontWeight="bold"
+        >
+          .kp ファイルをドロップして開く
+        </Box>
+      )}
       <TimelineToolbar
         onAddMarker={handleAddAtPlayhead}
         onDeleteSelected={handleDeleteSelected}
@@ -443,7 +554,6 @@ export const TimelineEditor: React.FC<Props> = ({ defaultSoundId, currentTargetV
         marker={singleSelected}
         selectionCount={selectedIds.size}
         selectedMarkers={selectedMarkers}
-        lengthTicks={timeline.state.lengthTicks}
         soundIdList={soundIdList}
         variants={variants}
         onChange={handlePanelChange}

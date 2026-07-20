@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Box, Button, Text } from '@yamada-ui/react'
 import type { Curve, Keyframe } from '../types/timeline'
 import { applyEasePreset, calculateCurveViewport, EasePreset } from '../utils/curvePresets'
 import { sampleCurve } from '../utils/curveSampling'
+import { constrainCurveHandles, constrainHandleDt } from '../utils/curveHandles'
 
 interface Props {
   label: string
@@ -20,6 +21,7 @@ interface Props {
   snapValues?: number[]
   valueTooltip?: boolean
   snapValueLabels?: string[]
+  warningRange?: { min: number, max: number }
 }
 
 const PAD = { l: 32, r: 8, t: 8, b: 20 }
@@ -41,7 +43,9 @@ interface DragState {
 export const CurveEditor: React.FC<Props> = ({
   label, duration, valueMin, valueMax, fallback, curve, onChange, onBeginEdit, onEndEdit,
   width = 400, height = 140, referenceValue, snapValues, valueTooltip = false, snapValueLabels,
+  warningRange,
 }) => {
+  const warningClipId = `curve-warning-${useId().replace(/:/g, '')}`
   const svgRef = useRef<SVGSVGElement | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -50,7 +54,7 @@ export const CurveEditor: React.FC<Props> = ({
   const [dragTooltip, setDragTooltip] = useState<{ x: number, y: number, value: number } | null>(null)
 
   const kfs: Keyframe[] = useMemo(() => {
-    const keyframes = curve?.keyframes ?? []
+    const keyframes = constrainCurveHandles(curve, duration)?.keyframes ?? []
     const withEndpoints = [...keyframes]
     if (!withEndpoints.some(kf => kf.tick === 0)) {
       withEndpoints.push({ tick: 0, value: fallback, interpolation: 'linear' })
@@ -127,11 +131,11 @@ export const CurveEditor: React.FC<Props> = ({
     const normalized = newKfs
       .map(kf => ({
         ...kf,
-        tick: Math.round(Math.max(0, Math.min(duration, kf.tick))),
+        tick: Math.max(0, Math.min(duration, kf.tick)),
       }))
       .sort((a, b) => a.tick - b.tick)
     if (normalized.some((kf, i) => i > 0 && normalized[i - 1].tick === kf.tick)) return false
-    onChange({ keyframes: normalized })
+    onChange(constrainCurveHandles({ keyframes: normalized }, duration))
     return true
   }, [duration, onChange])
   const handleBgPointerDown = useCallback(() => {
@@ -268,7 +272,10 @@ export const CurveEditor: React.FC<Props> = ({
         return {
           ...kf,
           handleL: {
-            dt: (d.origHandleL?.dt ?? -DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+            dt: constrainHandleDt(
+              'L',
+              (d.origHandleL?.dt ?? -DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+            ),
             dv: (d.origHandleL?.dv ?? 0) + rawValueDelta,
           },
         }
@@ -276,7 +283,10 @@ export const CurveEditor: React.FC<Props> = ({
       return {
         ...kf,
         handleR: {
-          dt: (d.origHandleR?.dt ?? DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+          dt: constrainHandleDt(
+            'R',
+            (d.origHandleR?.dt ?? DEFAULT_BEZIER_HANDLE) + rawTickDelta,
+          ),
           dv: (d.origHandleR?.dv ?? 0) + rawValueDelta,
         },
       }
@@ -342,8 +352,8 @@ export const CurveEditor: React.FC<Props> = ({
             return {
               ...kf,
               interpolation: 'bezier' as const,
-              handleL: kf.handleL ?? { dt: -DEFAULT_BEZIER_HANDLE, dv: 0 },
-              handleR: kf.handleR ?? { dt: DEFAULT_BEZIER_HANDLE, dv: 0 },
+              handleL: i > 0 ? (kf.handleL ?? { dt: -DEFAULT_BEZIER_HANDLE, dv: 0 }) : undefined,
+              handleR: i < kfs.length - 1 ? (kf.handleR ?? { dt: DEFAULT_BEZIER_HANDLE, dv: 0 }) : undefined,
             }
           }
           return { ...kf, interpolation: 'linear' as const }
@@ -401,8 +411,34 @@ export const CurveEditor: React.FC<Props> = ({
         {/* X 軸ラベル */}
         <text x={tickToX(0)} y={height - 4} fill="#9ca3af" fontSize="10">0</text>
         <text x={tickToX(duration)} y={height - 4} textAnchor="end" fill="#9ca3af" fontSize="10">{duration}</text>
+        {warningRange && (
+          <defs>
+            <clipPath id={warningClipId}>
+              <rect
+                x={PAD.l} y={PAD.t}
+                width={plotW}
+                height={Math.max(0, valueToY(warningRange.max) - PAD.t)}
+              />
+              <rect
+                x={PAD.l} y={valueToY(warningRange.min)}
+                width={plotW}
+                height={Math.max(0, PAD.t + plotH - valueToY(warningRange.min))}
+              />
+            </clipPath>
+          </defs>
+        )}
         {/* カーブ */}
         <path d={pathD} stroke="#3b82f6" strokeWidth={2} fill="none" pointerEvents="none" />
+        {warningRange && (
+          <path
+            d={pathD}
+            stroke="#ef4444"
+            strokeWidth={2}
+            fill="none"
+            clipPath={`url(#${warningClipId})`}
+            pointerEvents="none"
+          />
+        )}
         {/* キーフレーム + ハンドル */}
         {kfs.map((kf, i) => {
           const cx = tickToX(kf.tick)
@@ -412,7 +448,7 @@ export const CurveEditor: React.FC<Props> = ({
           const handleR = kf.handleR
           return (
             <g key={i}>
-              {kf.interpolation === 'bezier' && isSel && (
+              {(handleL || handleR) && (
                 <>
                   {handleL && (
                     <>

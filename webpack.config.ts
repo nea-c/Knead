@@ -1,11 +1,14 @@
 /** エディタで補完を効かせるために型定義をインポート */
 import type { Configuration } from 'webpack'
+import type { Configuration as DevServerConfiguration } from 'webpack-dev-server'
 
 import HtmlWebpackPlugin from 'html-webpack-plugin'
 import MiniCssExtractPlugin from 'mini-css-extract-plugin'
 
 // 開発者モードか否かで処理を分岐する
 const isDev = process.env.NODE_ENV === 'development'
+
+type WebpackConfiguration = Configuration & { devServer?: DevServerConfiguration }
 
 // 共通設定
 const common: Configuration = {
@@ -15,15 +18,13 @@ const common: Configuration = {
   resolve: {
     extensions: ['.js', '.ts', '.jsx', '.tsx', '.json'],
   },
-  /**
-   * macOS でビルドに失敗する場合のワークアラウンド
-   * https://github.com/yan-foto/electron-reload/issues/71
-   */
-  externals: ['fsevents'],
   // 出力先：デフォルトは "dist"
   output: {
     // 画像などのアセット類は "dist/assets" フォルダへ配置する
     assetModuleFilename: 'assets/[name][ext]',
+    // Tauri のカスタムプロトコルで sub.html からも同じバンドルを参照できるよう、
+    // JS/CSS の URL は常にアプリルートから解決する。
+    publicPath: '/',
   },
   module: {
     // ファイル種別ごとのコンパイル & バンドルのルール
@@ -60,41 +61,27 @@ const common: Configuration = {
   /**
    * development モードではソースマップを付ける
    *
-   * なお、開発時のレンダラープロセスではソースマップがないと
-   * electron のデベロッパーコンソールに "Uncaught EvalError" が
-   * 表示されてしまうことに注意
+   * Tauri WebView でもブラウザデバッガから元の TypeScript を追跡できるようにする。
    */
   devtool: isDev ? 'source-map' : undefined,
 }
 
-// メインプロセス向け設定
-const main: Configuration = {
-  // 共通設定を読み込み
-  ...common,
-  target: 'electron-main',
-  // エントリーファイル（チャンク名の "main.js" として出力される）
-  entry: {
-    main: './src/main.ts',
-  },
-}
-
-// プリロードスクリプト向け設定
-const preload: Configuration = {
-  ...common,
-  target: 'electron-preload',
-  entry: {
-    preload: './src/preload.ts',
-  },
-}
-
 // レンダラープロセス向け設定
-const renderer: Configuration = {
+const renderer: WebpackConfiguration = {
   ...common,
-  // セキュリティ対策として "electron-renderer" ターゲットは使用しない
+  // Tauri WebView 上で実行する通常の Web バンドル。
   target: 'web',
   entry: {
     // React アプリのエントリーファイル
     app: './src/web/index.tsx',
+  },
+  devServer: {
+    port: 1420,
+    hot: true,
+    historyApiFallback: true,
+    static: {
+      directory: 'dist',
+    },
   },
   plugins: [
     // CSS を JS へバンドルせず別ファイルとして出力するプラグイン
@@ -106,6 +93,10 @@ const renderer: Configuration = {
     new HtmlWebpackPlugin({
       // テンプレート
       template: './src/web/index.html',
+    }),
+    new HtmlWebpackPlugin({
+      template: './src/web/index.html',
+      filename: 'sub.html',
     }),
   ],
 }
@@ -120,4 +111,4 @@ const assets: Configuration = {
 }
 
 // 上記 3 つの設定を配列にしてデフォルト・エクスポート
-export default [main, preload, renderer, assets]
+export default [renderer, assets]

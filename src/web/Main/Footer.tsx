@@ -238,10 +238,10 @@ export const Footer = () => {
           else if (target_pitch > 2) target_pitch = 2
 
           try {
-            const hash = await window.myAPI.get_mcSoundHash(sound?.hash ?? '')
+            const data = await window.myAPI.get_mcSoundData(sound?.hash ?? '')
             // 再度stopを呼び出して確実に停止させる
             await AudioController.commands.stop()
-            await AudioController.commands.setSound(selectedSound, hash, target_pitch, appVolume - 1)
+            await AudioController.commands.setSound(selectedSound, data, target_pitch, appVolume - 1)
             await new Promise(resolve => setTimeout(resolve, 50))
             AudioController.commands.play()
           }
